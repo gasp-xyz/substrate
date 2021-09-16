@@ -40,9 +40,11 @@ use sp_runtime::{
 use sp_transaction_pool::{InPoolTransaction, TransactionPool};
 use std::marker::PhantomData;
 use std::{sync::Arc, time};
-use sc_keystore::KeyStorePtr;
-// use ecies::{utils::{aes_decrypt, aes_encrypt, decapsulate, encapsulate}};
-// use sp_core::{sr25519, Pair, Public, H160};
+use sc_keystore::{KeyStorePtr};
+use ecies::{utils::{aes_decrypt, aes_encrypt, decapsulate, encapsulate}, SecretKey, PublicKey, FULL_PUBLIC_KEY_SIZE};
+use sp_core::{sr25519, Pair, Public, H160, crypto::{KeyTypeId}};
+// use secp256k1::{SecretKey, PublicKey, util::FULL_PUBLIC_KEY_SIZE};
+use hex_literal::hex;
 
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::MetricsLink as PrometheusMetrics;
@@ -59,7 +61,7 @@ pub struct ProposerFactory<A, B, C> {
 	/// Prometheus Link,
 	metrics: PrometheusMetrics,
 	/// keystore for encrypted transactions
-	keystore: KeyStorePtr
+	keystore: KeyStorePtr,
 	/// phantom member to pin the `Backend` type.
 	_phantom: PhantomData<B>,
 }
@@ -69,7 +71,7 @@ impl<A, B, C> ProposerFactory<A, B, C> {
 		client: Arc<C>,
 		transaction_pool: Arc<A>,
 		prometheus: Option<&PrometheusRegistry>,
-		keystore: Keystore,
+		keystore: KeyStorePtr,
 	) -> Self {
 		ProposerFactory {
 			client,
@@ -266,7 +268,31 @@ impl<A, B, Block, C> Proposer<B, Block, C, A>
 				for p in pending_iterator {
 					if test_ecies == true{
 
-						
+						let alice_xxtx_compressed_pub_key: [u8; 33] = hex!["020a1091341fe5664bfa1782d5e04779689068c916b04cb365ec3153755684d9a1"];
+						let alice_xxtx_pub_key: PublicKey = PublicKey::parse_compressed(&alice_xxtx_compressed_pub_key);
+						let alice_xxtx_typed_pub_key = sp_core::crypto::ecdsa::Public::from_slice(&alice_xxtx_compressed_pub_key);
+						let alice_xxtx_typed_pair = self.keystore.read().key_pair_by_type(&alice_xxtx_typed_pub_key, KeyTypeId(*b"xxtx"));
+
+						let alice_xxtx_seed: [u8; 32] = alice_xxtx_typed_pair.seed();
+						let alice_xxtx_secret_key: SecretKey = SecretKey::parse_slice(&alice_xxtx_seed);
+						let dummy_secret_key: SecretKey = SecretKey::default();
+						let dummy_public_key: PublicKey = PublicKey::from_secret_key(&alice_xxtx_secret_key);
+
+						let msg: [u8; 2] = hex!["0001"];
+
+						let user_aes_key = encapsulate(&dummy_secret_key.into(), &alice_xxtx_pub_key.into());
+						let encrypted = aes_encrypt(&user_aes_key, &msg);
+
+						let mut cipher_text = Vec::with_capacity(FULL_PUBLIC_KEY_SIZE + encrypted.len());
+						cipher_text.extend(dummy_public_key.serialize().iter());
+						cipher_text.extend(encrypted);
+
+						let extracted_dummy_public_key = PublicKey::parse_slice(&msg[..FULL_PUBLIC_KEY_SIZE], None);
+						let extracted_encrypted = &msg[FULL_PUBLIC_KEY_SIZE..];
+
+						let alice_aes_key = decapsulate(&extracted_dummy_public_key.into(), &alice_xxtx_secret_key.into());
+
+						let decrypted_msg = aes_decrypt(&alice_aes_key, extracted_encrypted);
 
 						test_ecies = false;
 					}
