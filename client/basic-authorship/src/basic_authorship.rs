@@ -244,6 +244,7 @@ impl<A, B, Block, C> Proposer<B, Block, C, A>
 		let parent_number = self.parent_number;
 		let transaction_pool = self.transaction_pool.clone();
 		let now = self.now;
+		let keystore = self.keystore.clone();
 
 		debug!("Attempting to push transactions from the pool.");
 		debug!("Pool status: {:?}", self.transaction_pool.status());
@@ -267,32 +268,35 @@ impl<A, B, Block, C> Proposer<B, Block, C, A>
 				let mut test_ecies: bool = true;
 				for p in pending_iterator {
 					if test_ecies == true{
+						info!("Starting ecies test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
 						let alice_xxtx_compressed_pub_key: [u8; 33] = hex!["020a1091341fe5664bfa1782d5e04779689068c916b04cb365ec3153755684d9a1"];
-						let alice_xxtx_pub_key: PublicKey = PublicKey::parse_compressed(&alice_xxtx_compressed_pub_key);
-						let alice_xxtx_typed_pub_key = sp_core::crypto::ecdsa::Public::from_slice(&alice_xxtx_compressed_pub_key);
-						let alice_xxtx_typed_pair = self.keystore.read().key_pair_by_type(&alice_xxtx_typed_pub_key, KeyTypeId(*b"xxtx"));
+						let alice_xxtx_pub_key: PublicKey = PublicKey::parse_compressed(&alice_xxtx_compressed_pub_key).unwrap();
+						let alice_xxtx_typed_pub_key = sp_core::ecdsa::Public::from_slice(&alice_xxtx_compressed_pub_key);
+						let alice_xxtx_typed_pair = keystore.clone().read().key_pair_by_type::<sp_core::ecdsa::Pair>(&alice_xxtx_typed_pub_key, KeyTypeId(*b"xxtx")).unwrap();
 
 						let alice_xxtx_seed: [u8; 32] = alice_xxtx_typed_pair.seed();
-						let alice_xxtx_secret_key: SecretKey = SecretKey::parse_slice(&alice_xxtx_seed);
+						let alice_xxtx_secret_key: SecretKey = SecretKey::parse_slice(&alice_xxtx_seed).unwrap();
 						let dummy_secret_key: SecretKey = SecretKey::default();
 						let dummy_public_key: PublicKey = PublicKey::from_secret_key(&alice_xxtx_secret_key);
 
 						let msg: [u8; 2] = hex!["0001"];
 
-						let user_aes_key = encapsulate(&dummy_secret_key.into(), &alice_xxtx_pub_key.into());
-						let encrypted = aes_encrypt(&user_aes_key, &msg);
+						let user_aes_key = encapsulate(&dummy_secret_key, &alice_xxtx_pub_key).unwrap();
+						let encrypted = aes_encrypt(&user_aes_key, &msg).unwrap();
 
 						let mut cipher_text = Vec::with_capacity(FULL_PUBLIC_KEY_SIZE + encrypted.len());
 						cipher_text.extend(dummy_public_key.serialize().iter());
 						cipher_text.extend(encrypted);
 
-						let extracted_dummy_public_key = PublicKey::parse_slice(&msg[..FULL_PUBLIC_KEY_SIZE], None);
-						let extracted_encrypted = &msg[FULL_PUBLIC_KEY_SIZE..];
+						let extracted_dummy_public_key = PublicKey::parse_slice(&cipher_text[..FULL_PUBLIC_KEY_SIZE], None).unwrap();
+						let extracted_encrypted = &cipher_text[FULL_PUBLIC_KEY_SIZE..];
 
-						let alice_aes_key = decapsulate(&extracted_dummy_public_key.into(), &alice_xxtx_secret_key.into());
+						let alice_aes_key = decapsulate(&extracted_dummy_public_key, &alice_xxtx_secret_key).unwrap();
 
-						let decrypted_msg = aes_decrypt(&alice_aes_key, extracted_encrypted);
+						let decrypted_msg = aes_decrypt(&alice_aes_key, extracted_encrypted).unwrap();
+
+						assert!{ msg[..] == decrypted_msg[..] };
 
 						test_ecies = false;
 					}
