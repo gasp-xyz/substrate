@@ -32,6 +32,9 @@ extrinsic-info-runtime-api = { version = "2.0.0", path='../../primitives/extrins
 sc-proposer-metrics = { version = "0.8.0", path = "../proposer-metrics" }
 tokio-executor = { version = "0.2.0-alpha.6", features = ["blocking"] }
 sc-transaction-pool = {  version = "2.0.0", path = "../transaction-pool" }
+sc-keystore = { version = "2.0.0", path = "../keystore" }
+#ecies = {version = "0.2", default-features = false, feature = "openssl"}
+#secp256k1 = { package = "libsecp256k1", version = "0.6" }
 
 [dev-dependencies]
 # sc-transaction-pool = { version = "2.0.0", path = "../../client/transaction-pool" }

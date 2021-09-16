@@ -40,11 +40,15 @@ use sp_runtime::{
 use sp_transaction_pool::{InPoolTransaction, TransactionPool};
 use std::marker::PhantomData;
 use std::{sync::Arc, time};
+use sc_keystore::KeyStorePtr;
+// use ecies::{utils::{aes_decrypt, aes_encrypt, decapsulate, encapsulate}};
+// use sp_core::{sr25519, Pair, Public, H160};
 
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::MetricsLink as PrometheusMetrics;
 use std::cell::RefCell;
 use std::rc::Rc;
+
 
 /// Proposer factory.
 pub struct ProposerFactory<A, B, C> {
@@ -54,6 +58,8 @@ pub struct ProposerFactory<A, B, C> {
 	transaction_pool: Arc<A>,
 	/// Prometheus Link,
 	metrics: PrometheusMetrics,
+	/// keystore for encrypted transactions
+	keystore: KeyStorePtr
 	/// phantom member to pin the `Backend` type.
 	_phantom: PhantomData<B>,
 }
@@ -63,11 +69,13 @@ impl<A, B, C> ProposerFactory<A, B, C> {
 		client: Arc<C>,
 		transaction_pool: Arc<A>,
 		prometheus: Option<&PrometheusRegistry>,
+		keystore: Keystore,
 	) -> Self {
 		ProposerFactory {
 			client,
 			transaction_pool,
 			metrics: PrometheusMetrics::new(prometheus),
+			keystore,
 			_phantom: PhantomData,
 		}
 	}
@@ -102,6 +110,7 @@ impl<B, Block, C, A> ProposerFactory<A, B, C>
 			transaction_pool: self.transaction_pool.clone(),
 			now,
 			metrics: self.metrics.clone(),
+			keystore: self.keystore.clone(),
 			_phantom: PhantomData,
 		};
 
@@ -142,6 +151,7 @@ pub struct Proposer<B, Block: BlockT, C, A: TransactionPool> {
 	transaction_pool: Arc<A>,
 	now: Box<dyn Fn() -> time::Instant + Send + Sync>,
 	metrics: PrometheusMetrics,
+	keystore: KeyStorePtr,
 	_phantom: PhantomData<B>,
 }
 
@@ -252,7 +262,14 @@ impl<A, B, Block, C> Proposer<B, Block, C, A>
 				};
 
 				let mut extrinsics: Vec<_> = Vec::new();
+				let mut test_ecies: bool = true;
 				for p in pending_iterator {
+					if test_ecies == true{
+
+						
+
+						test_ecies = false;
+					}
 					let pending_tx_data = p.data().clone();
 					let pending_tx_hash = p.hash().clone();
 					let execution_status = api.execute_in_transaction(|_| {
