@@ -278,23 +278,33 @@ impl<A, B, Block, C> Proposer<B, Block, C, A>
 						let alice_xxtx_seed: [u8; 32] = alice_xxtx_typed_pair.seed();
 						let alice_xxtx_secret_key: SecretKey = SecretKey::parse_slice(&alice_xxtx_seed).unwrap();
 						let dummy_secret_key: SecretKey = SecretKey::default();
-						let dummy_public_key: PublicKey = PublicKey::from_secret_key(&alice_xxtx_secret_key);
+						let dummy_public_key: PublicKey = PublicKey::from_secret_key(&dummy_secret_key);
 
-						let msg: [u8; 2] = hex!["0001"];
+						let msg: [u8; 10] = hex!["00010001000100010101"];
+
+						info!("msg - {:?}", msg.clone());
 
 						let user_aes_key = encapsulate(&dummy_secret_key, &alice_xxtx_pub_key).unwrap();
 						let encrypted = aes_encrypt(&user_aes_key, &msg).unwrap();
 
+						info!("encrypted - {:?}", encrypted.clone());
+
 						let mut cipher_text = Vec::with_capacity(FULL_PUBLIC_KEY_SIZE + encrypted.len());
+						info!("cipher_text - {:?}", cipher_text.clone());
 						cipher_text.extend(dummy_public_key.serialize().iter());
+						info!("cipher_text - {:?}", cipher_text.clone());
 						cipher_text.extend(encrypted);
+						info!("cipher_text - {:?}", cipher_text.clone());
 
 						let extracted_dummy_public_key = PublicKey::parse_slice(&cipher_text[..FULL_PUBLIC_KEY_SIZE], None).unwrap();
+						info!("extracted_dummy_public_key - {:?}", extracted_dummy_public_key.clone());
 						let extracted_encrypted = &cipher_text[FULL_PUBLIC_KEY_SIZE..];
+						info!("extracted_encrypted - {:?}", extracted_encrypted.clone());
 
 						let alice_aes_key = decapsulate(&extracted_dummy_public_key, &alice_xxtx_secret_key).unwrap();
 
 						let decrypted_msg = aes_decrypt(&alice_aes_key, extracted_encrypted).unwrap();
+						info!("decrypted_msg - {:?}", decrypted_msg.clone());
 
 						assert!{ msg[..] == decrypted_msg[..] };
 
