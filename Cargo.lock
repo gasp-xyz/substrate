@@ -3940,6 +3940,7 @@ dependencies = [
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-runtime",
+ "sp-signer-api",
  "sp-transaction-pool",
  "structopt",
  "substrate-build-script-utils",
@@ -3976,6 +3977,7 @@ dependencies = [
  "sp-offchain",
  "sp-runtime",
  "sp-session",
+ "sp-signer-api",
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
@@ -8333,6 +8335,14 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std",
+]
+
+[[package]]
+name = "sp-signer-api"
+version = "2.0.0"
+dependencies = [
+ "sp-api",
+ "sp-runtime",
 ]
 
 [[package]]

@@ -334,6 +334,12 @@ impl_runtime_apis! {
 		}
 	}
 
+    impl sp_signer_api::SignerApi<Block> for Runtime{
+		fn get_signer(tx: <Block as BlockT>::Extrinsic) -> Option<sp_runtime::AccountId32>{
+            tx.signature.clone().map(|sig| sig.0)
+        }
+    }
+
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			Runtime::metadata().into()
