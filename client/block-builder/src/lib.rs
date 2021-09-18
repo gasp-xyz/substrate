@@ -198,14 +198,16 @@ where
 			).unwrap().unwrap().unwrap(); // <- we can use unwrap as we already know it works
 		}
 
-		let mut header = self.api.finalize_block_with_context(
+		let header = self.api.finalize_block_with_context(
 			&self.block_id, ExecutionContext::BlockConstruction
 		)?;
 
-        let root = HashFor::<Block>::ordered_trie_root(
-            self.extrinsics.iter().map(Encode::encode).collect(),
-        );
-        header.set_extrinsics_root(root);
+		debug_assert_eq!(
+			header.extrinsics_root().clone(),
+			HashFor::<Block>::ordered_trie_root(
+				self.extrinsics.iter().rev().map(Encode::encode).collect(),
+			),
+		);
 
 		let proof = self.api.extract_proof();
 

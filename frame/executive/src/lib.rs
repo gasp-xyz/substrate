@@ -304,7 +304,8 @@ where
 
 			// execute extrinsics
 			let (header, extrinsics) = block.deconstruct();
-			Self::execute_extrinsics_with_book_keeping(extrinsics, *header.number());
+			let reversed = extrinsics.into_iter().rev().collect();
+			Self::execute_extrinsics_with_book_keeping(reversed, *header.number());
 
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
@@ -317,7 +318,7 @@ where
 
 	/// Execute given extrinsics and take care of post-extrinsics book-keeping.
 	fn execute_extrinsics_with_book_keeping(extrinsics: Vec<Block::Extrinsic>, block_number: NumberFor<Block>) {
-		extrinsics.into_iter().rev().for_each(Self::apply_extrinsic_no_note);
+		extrinsics.into_iter().for_each(Self::apply_extrinsic_no_note);
 
 		// post-extrinsics book-keeping
 		<frame_system::Module<System>>::note_finished_extrinsics();
