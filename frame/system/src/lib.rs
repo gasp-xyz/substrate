@@ -1200,7 +1200,7 @@ impl<T: Trait> Module<T> {
 
 	/// Remove all extrinsic data and save the extrinsics trie root.
 	pub fn derive_extrinsics() {
-		let extrinsics = (0..ExtrinsicCount::get().unwrap_or_default())
+		let extrinsics = (0..ExtrinsicCount::get().unwrap_or_default()).rev()
 			.map(ExtrinsicData::take).collect();
 		let xts_root = extrinsics_data_root::<T::Hashing>(extrinsics);
 		<ExtrinsicsRoot<T>>::put(xts_root);
