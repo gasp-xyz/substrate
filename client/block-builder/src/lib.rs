@@ -167,7 +167,7 @@ where
 			) {
 				Ok(Ok(_)) => {
 					extrinsics.push(xt);
-					TransactionOutcome::Commit(Ok(()))
+					TransactionOutcome::Rollback(Ok(()))
 				}
 				Ok(Err(tx_validity)) => {
 					TransactionOutcome::Rollback(
@@ -188,11 +188,21 @@ where
 		BuiltBlock<Block, backend::StateBackendFor<B, Block>>,
 		ApiErrorFor<A, Block>
 	> {
+
+		// execute extrinsics in reverse order
+		for xt in self.extrinsics.iter().rev(){
+			self.api.apply_extrinsic_with_context(
+				&self.block_id,
+				ExecutionContext::BlockConstruction,
+				xt.clone(),
+			).unwrap().unwrap().unwrap(); // <- we can use unwrap as we already know it works
+		}
+
 		let header = self.api.finalize_block_with_context(
 			&self.block_id, ExecutionContext::BlockConstruction
 		)?;
 
-		debug_assert_eq!(
+		assert_eq!(
 			header.extrinsics_root().clone(),
 			HashFor::<Block>::ordered_trie_root(
 				self.extrinsics.iter().map(Encode::encode).collect(),
