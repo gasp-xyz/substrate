@@ -22,6 +22,7 @@ sp-blockchain = { version = "2.0.0", path = "../../primitives/blockchain" }
 sp-core = { version = "2.0.0", path = "../../primitives/core" }
 sp-block-builder = { version = "2.0.0", path = "../../primitives/block-builder" }
 sp-inherents = { version = "2.0.0", path = "../../primitives/inherents" }
+sp-signer-api = { version = "2.0.0", path = "../../primitives/signer-api" }
 sc-client-api = { version = "2.0.0", path = "../api" }
 codec = { package = "parity-scale-codec", version = "1.3.4", features = ["derive"] }
 

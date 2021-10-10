@@ -39,8 +39,10 @@ use sp_api::{
 	TransactionOutcome,
 };
 use sp_consensus::RecordProof;
+use sp_signer_api::SignerApi;
 
 pub use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use std::collections::HashSet;
 
 use sc_client_api::backend;
 
@@ -106,7 +108,7 @@ impl<'a, Block, A, B> BlockBuilder<'a, Block, A, B>
 where
 	Block: BlockT,
 	A: ProvideRuntimeApi<Block> + 'a,
-	A::Api: BlockBuilderApi<Block, Error = Error> +
+	A::Api: BlockBuilderApi<Block, Error = Error> + SignerApi<Block> +
 		ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
 	B: backend::Backend<Block>,
 {
@@ -179,6 +181,27 @@ where
 		})
 	}
 
+    fn reverse_extrinsics_order(&mut self){
+        self.extrinsics.reverse();
+
+        let index_with_signer: Vec<_> = self.extrinsics.iter().enumerate()
+            .map(|(index, xt)| (index, self.api.get_signer(&self.block_id, &xt).unwrap()))
+            .collect();
+
+        let signers: HashSet<_> = index_with_signer.iter().map( |(_, who)| who ).collect();
+
+        for s in signers{
+            let mut filtered = index_with_signer.iter()
+                .filter_map(|(index, who)| if who == s { Some(index) } else {None} )
+                .cloned();
+
+            while let (Some(front), Some(back)) = (filtered.next(), filtered.next_back()){
+                self.extrinsics.swap(front,back);
+            }
+        }
+
+    }
+
 	/// Consume the builder to build a valid `Block` containing all pushed extrinsics.
 	///
 	/// Returns the build `Block`, the changes to the storage and an optional `StorageProof`
@@ -189,8 +212,10 @@ where
 		ApiErrorFor<A, Block>
 	> {
 
+        self.reverse_extrinsics_order();
+
 		// execute extrinsics in reverse order
-		for xt in self.extrinsics.iter().rev(){
+		for xt in self.extrinsics.iter(){
 			self.api.apply_extrinsic_with_context(
 				&self.block_id,
 				ExecutionContext::BlockConstruction,
@@ -205,7 +230,7 @@ where
 		debug_assert_eq!(
 			header.extrinsics_root().clone(),
 			HashFor::<Block>::ordered_trie_root(
-				self.extrinsics.iter().rev().map(Encode::encode).collect(),
+				self.extrinsics.iter().map(Encode::encode).collect(),
 			),
 		);
 
