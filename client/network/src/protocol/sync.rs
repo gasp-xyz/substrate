@@ -1531,21 +1531,21 @@ fn validate_blocks<Block: BlockT>(blocks: &Vec<message::BlockData<Block>>, who: 
 				return Err(BadPeer(who.clone(), rep::BAD_BLOCK))
 			}
 		}
-		if let (Some(header), Some(body)) = (&b.header, &b.body) {
-			let expected = *header.extrinsics_root();
-			let got = HashFor::<Block>::ordered_trie_root(body.iter().map(Encode::encode).collect());
-			if expected != got {
-				debug!(
-					target:"sync",
-					"Bad extrinsic root for a block {} received from {}. Expected {:?}, got {:?}",
-					b.hash,
-					who,
-					expected,
-					got,
-				);
-				return Err(BadPeer(who.clone(), rep::BAD_BLOCK))
-			}
-		}
+		// if let (Some(header), Some(body)) = (&b.header, &b.body) {
+		// 	let expected = *header.extrinsics_root();
+		// 	let got = HashFor::<Block>::ordered_trie_root(body.iter().map(Encode::encode).collect());
+		// 	if expected != got {
+		// 		debug!(
+		// 			target:"sync",
+		// 			"Bad extrinsic root for a block {} received from {}. Expected {:?}, got {:?}",
+		// 			b.hash,
+		// 			who,
+		// 			expected,
+		// 			got,
+		// 		);
+		// 		return Err(BadPeer(who.clone(), rep::BAD_BLOCK))
+		// 	}
+		// }
 	}
 	Ok(())
 }

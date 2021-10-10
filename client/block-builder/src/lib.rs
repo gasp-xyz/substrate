@@ -202,7 +202,7 @@ where
 			&self.block_id, ExecutionContext::BlockConstruction
 		)?;
 
-		assert_eq!(
+		debug_assert_eq!(
 			header.extrinsics_root().clone(),
 			HashFor::<Block>::ordered_trie_root(
 				self.extrinsics.iter().map(Encode::encode).collect(),
