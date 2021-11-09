@@ -5181,12 +5181,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdqselect"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ec91767ecc0a0bbe558ce8c9da33c068066c57ecc8bb8477ef8c1ad3ef77c27"
-
-[[package]]
 name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6183,7 +6177,6 @@ dependencies = [
  "impl-trait-for-tuples 0.2.1",
  "parity-scale-codec",
  "sc-chain-spec-derive",
- "sc-consensus-babe",
  "sc-consensus-epochs",
  "sc-finality-grandpa",
  "sc-network",
@@ -6368,90 +6361,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-consensus-babe"
-version = "0.9.0"
-dependencies = [
- "derive_more",
- "fork-tree",
- "futures 0.3.12",
- "futures-timer 3.0.2",
- "log",
- "merlin",
- "num-bigint",
- "num-rational",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "pdqselect",
- "rand 0.7.3",
- "rand_chacha 0.2.2",
- "retain_mut",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus-epochs",
- "sc-consensus-slots",
- "sc-consensus-uncles",
- "sc-executor",
- "sc-keystore",
- "sc-network",
- "sc-network-test",
- "sc-service",
- "sc-telemetry",
- "schnorrkel",
- "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-consensus-slots",
- "sp-consensus-vrf",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
- "sp-keystore",
- "sp-runtime",
- "sp-timestamp",
- "sp-tracing",
- "sp-utils",
- "sp-version",
- "substrate-prometheus-endpoint",
- "substrate-test-runtime-client",
- "tempfile",
-]
-
-[[package]]
-name = "sc-consensus-babe-rpc"
-version = "0.9.0"
-dependencies = [
- "derive_more",
- "futures 0.3.12",
- "jsonrpc-core",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-consensus-epochs",
- "sc-keystore",
- "sc-rpc-api",
- "serde",
- "serde_json",
- "sp-api",
- "sp-application-crypto",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-keyring",
- "sp-keystore",
- "sp-runtime",
- "substrate-test-runtime-client",
- "tempfile",
-]
-
-[[package]]
 name = "sc-consensus-epochs"
 version = "0.9.0"
 dependencies = [
@@ -6461,44 +6370,6 @@ dependencies = [
  "sc-client-api",
  "sp-blockchain",
  "sp-runtime",
-]
-
-[[package]]
-name = "sc-consensus-manual-seal"
-version = "0.9.0"
-dependencies = [
- "assert_matches",
- "derive_more",
- "futures 0.3.12",
- "jsonrpc-core",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sc-basic-authorship",
- "sc-client-api",
- "sc-consensus-babe",
- "sc-consensus-epochs",
- "sc-transaction-pool",
- "serde",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-consensus-slots",
- "sp-core",
- "sp-inherents",
- "sp-keyring",
- "sp-keystore",
- "sp-runtime",
- "sp-timestamp",
- "sp-transaction-pool",
- "substrate-prometheus-endpoint",
- "substrate-test-runtime-client",
- "substrate-test-runtime-transaction-pool",
- "tempfile",
- "tokio 0.2.25",
 ]
 
 [[package]]
@@ -7149,25 +7020,6 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-client-api",
  "sp-core",
- "thiserror",
-]
-
-[[package]]
-name = "sc-sync-state-rpc"
-version = "0.9.0"
-dependencies = [
- "jsonrpc-core",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "sc-chain-spec",
- "sc-client-api",
- "sc-consensus-babe",
- "sc-consensus-epochs",
- "sc-finality-grandpa",
- "sc-rpc-api",
- "serde_json",
- "sp-blockchain",
- "sp-runtime",
  "thiserror",
 ]
 

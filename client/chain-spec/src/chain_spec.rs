@@ -398,46 +398,46 @@ where
 }
 
 /// Hardcoded infomation that allows light clients to sync quickly.
-pub struct LightSyncState<Block: BlockT> {
-	/// The header of the best finalized block.
-	pub finalized_block_header: <Block as BlockT>::Header,
-	/// The epoch changes tree for babe.
-	pub babe_epoch_changes: sc_consensus_epochs::EpochChangesFor<Block, sc_consensus_babe::Epoch>,
-	/// The babe weight of the finalized block.
-	pub babe_finalized_block_weight: sp_consensus_babe::BabeBlockWeight,
-	/// The authority set for grandpa.
-	pub grandpa_authority_set: sc_finality_grandpa::AuthoritySet<<Block as BlockT>::Hash, NumberFor<Block>>,
-}
-
-impl<Block: BlockT> LightSyncState<Block> {
-	/// Convert into a `SerializableLightSyncState`.
-	pub fn to_serializable(&self) -> SerializableLightSyncState {
-		use codec::Encode;
-
-		SerializableLightSyncState {
-			finalized_block_header: StorageData(self.finalized_block_header.encode()),
-			babe_epoch_changes:
-				StorageData(self.babe_epoch_changes.encode()),
-			babe_finalized_block_weight:
-				self.babe_finalized_block_weight,
-			grandpa_authority_set:
-				StorageData(self.grandpa_authority_set.encode()),
-		}
-	}
-
-	/// Convert from a `SerializableLightSyncState`.
-	pub fn from_serializable(serialized: &SerializableLightSyncState) -> Result<Self, codec::Error> {
-		Ok(Self {
-			finalized_block_header: codec::Decode::decode(&mut &serialized.finalized_block_header.0[..])?,
-			babe_epoch_changes:
-				codec::Decode::decode(&mut &serialized.babe_epoch_changes.0[..])?,
-			babe_finalized_block_weight:
-				serialized.babe_finalized_block_weight,
-			grandpa_authority_set:
-				codec::Decode::decode(&mut &serialized.grandpa_authority_set.0[..])?,
-		})
-	}
-}
+// pub struct LightSyncState<Block: BlockT> {
+// 	/// The header of the best finalized block.
+// 	pub finalized_block_header: <Block as BlockT>::Header,
+// 	/// The epoch changes tree for babe.
+// 	pub babe_epoch_changes: sc_consensus_epochs::EpochChangesFor<Block, sc_consensus_babe::Epoch>,
+// 	/// The babe weight of the finalized block.
+// 	pub babe_finalized_block_weight: sp_consensus_babe::BabeBlockWeight,
+// 	/// The authority set for grandpa.
+// 	pub grandpa_authority_set: sc_finality_grandpa::AuthoritySet<<Block as BlockT>::Hash, NumberFor<Block>>,
+// }
+//
+// impl<Block: BlockT> LightSyncState<Block> {
+// 	/// Convert into a `SerializableLightSyncState`.
+// 	pub fn to_serializable(&self) -> SerializableLightSyncState {
+// 		use codec::Encode;
+//
+// 		SerializableLightSyncState {
+// 			finalized_block_header: StorageData(self.finalized_block_header.encode()),
+// 			babe_epoch_changes:
+// 				StorageData(self.babe_epoch_changes.encode()),
+// 			babe_finalized_block_weight:
+// 				self.babe_finalized_block_weight,
+// 			grandpa_authority_set:
+// 				StorageData(self.grandpa_authority_set.encode()),
+// 		}
+// 	}
+//
+// 	/// Convert from a `SerializableLightSyncState`.
+// 	pub fn from_serializable(serialized: &SerializableLightSyncState) -> Result<Self, codec::Error> {
+// 		Ok(Self {
+// 			finalized_block_header: codec::Decode::decode(&mut &serialized.finalized_block_header.0[..])?,
+// 			babe_epoch_changes:
+// 				codec::Decode::decode(&mut &serialized.babe_epoch_changes.0[..])?,
+// 			babe_finalized_block_weight:
+// 				serialized.babe_finalized_block_weight,
+// 			grandpa_authority_set:
+// 				codec::Decode::decode(&mut &serialized.grandpa_authority_set.0[..])?,
+// 		})
+// 	}
+// }
 
 /// The serializable form of `LightSyncState`. Created using `LightSyncState::serialize`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
