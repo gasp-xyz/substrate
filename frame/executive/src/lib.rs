@@ -763,9 +763,10 @@ mod tests {
 					state_root: hex!("1599922f15b2d5cf75e83370e29e13b96fdf799d917a5b6319736af292f21665").into(),
 					extrinsics_root: hex!("03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314").into(),
 					digest: Digest { logs: vec![], },
+                    seed: Default::default(),
 				},
 				extrinsics: vec![],
-			});
+			},vec![]);
 		});
 	}
 
@@ -779,10 +780,11 @@ mod tests {
 					number: 1,
 					state_root: [0u8; 32].into(),
 					extrinsics_root: hex!("03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314").into(),
-					digest: Digest { logs: vec![], },
+					digest: Digest { logs: vec![] },
+					seed: Default::default(),
 				},
 				extrinsics: vec![],
-			});
+			},vec![]);
 		});
 	}
 
@@ -797,9 +799,10 @@ mod tests {
 					state_root: hex!("49cd58a254ccf6abc4a023d9a22dcfc421e385527a250faec69f8ad0d8ed3e48").into(),
 					extrinsics_root: [0u8; 32].into(),
 					digest: Digest { logs: vec![], },
+					seed: Default::default(),
 				},
 				extrinsics: vec![],
-			});
+			}, vec![]);
 		});
 	}
 
@@ -1182,7 +1185,7 @@ mod tests {
 		});
 
 		new_test_ext(1).execute_with(|| {
-			Executive::execute_block(Block::new(header, vec![xt]));
+			Executive::execute_block(Block::new(header, vec![xt]), vec![None]);
 		});
 	}
 }

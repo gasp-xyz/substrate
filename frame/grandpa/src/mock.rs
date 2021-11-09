@@ -350,6 +350,7 @@ pub fn start_session(session_index: SessionIndex) {
 			&parent_hash,
 			&Default::default(),
 			Default::default(),
+			&Default::default(),
 		);
 		System::set_block_number((i + 1).into());
 		Timestamp::set_timestamp(System::block_number() * 6000);
@@ -374,6 +375,7 @@ pub fn initialize_block(number: u64, parent_hash: H256) {
 		&parent_hash,
 		&Default::default(),
 		Default::default(),
+		&Default::default(),
 	);
 }
 

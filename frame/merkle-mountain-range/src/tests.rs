@@ -47,6 +47,7 @@ fn new_block() -> u64 {
 		&hash,
 		&Default::default(),
 		frame_system::InitKind::Full,
+		&Default::default(),
 	);
 	MMR::on_initialize(number)
 }
