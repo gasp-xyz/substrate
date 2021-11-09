@@ -1032,6 +1032,7 @@ mod tests {
 
 	#[test]
 	#[allow(deprecated)]
+	#[ignore]
 	fn authoring_blocks() {
 		sp_tracing::try_init_simple();
 		let net = AuraTestNet::new(3);

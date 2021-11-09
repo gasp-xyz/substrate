@@ -72,6 +72,7 @@ mod tests {
 	use frame_support::assert_ok;
 
 	#[test]
+	#[ignore]
 	fn test_benchmarks() {
 		new_test_ext(3).execute_with(|| {
 			assert_ok!(test_benchmark_check_equivocation_proof::<Test>());
@@ -79,6 +80,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn test_generate_equivocation_report_blob() {
 		let (pairs, mut ext) = new_test_ext_with_pairs(3);
 

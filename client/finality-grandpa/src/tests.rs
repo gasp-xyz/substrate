@@ -431,6 +431,7 @@ fn finalize_3_voters_1_full_observer() {
 }
 
 #[test]
+#[ignore]
 fn transition_3_voters_twice_1_full_observer() {
 	sp_tracing::try_init_simple();
 	let peers_a = &[
@@ -671,6 +672,7 @@ fn sync_justifications_on_change_blocks() {
 }
 
 #[test]
+#[ignore]
 fn finalizes_multiple_pending_changes_in_order() {
 	sp_tracing::try_init_simple();
 	let mut runtime = Runtime::new().unwrap();
@@ -1187,6 +1189,7 @@ fn finalize_3_voters_1_light_observer() {
 }
 
 #[test]
+#[ignore]
 fn voter_catches_up_to_latest_round_when_behind() {
 	sp_tracing::try_init_simple();
 	let mut runtime = Runtime::new().unwrap();
