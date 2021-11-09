@@ -62,6 +62,7 @@ fn deposit_event_should_work() {
 			&[0u8; 32].into(),
 			&Default::default(),
 			InitKind::Full,
+            &Default::default(),
 		);
 		System::note_finished_extrinsics();
 		System::deposit_event(SysEvent::CodeUpdated);
@@ -82,6 +83,7 @@ fn deposit_event_should_work() {
 			&[0u8; 32].into(),
 			&Default::default(),
 			InitKind::Full,
+			&Default::default(),
 		);
 		System::deposit_event(SysEvent::NewAccount(32));
 		System::note_finished_initialize();
@@ -138,6 +140,7 @@ fn deposit_event_uses_actual_weight() {
 			&[0u8; 32].into(),
 			&Default::default(),
 			InitKind::Full,
+			&Default::default(),
 		);
 		System::note_finished_initialize();
 
@@ -222,6 +225,7 @@ fn deposit_event_topics() {
 			&[0u8; 32].into(),
 			&Default::default(),
 			InitKind::Full,
+			&Default::default(),
 		);
 		System::note_finished_extrinsics();
 
@@ -287,6 +291,7 @@ fn prunes_block_hash_mappings() {
 				&[n as u8 - 1; 32].into(),
 				&Default::default(),
 				InitKind::Full,
+			&Default::default(),
 			);
 
 			System::finalize();
@@ -432,6 +437,7 @@ fn extrinsics_root_is_calculated_correctly() {
 			&[0u8; 32].into(),
 			&Default::default(),
 			InitKind::Full,
+			&Default::default(),
 		);
 		System::note_finished_initialize();
 		System::note_extrinsic(vec![1]);

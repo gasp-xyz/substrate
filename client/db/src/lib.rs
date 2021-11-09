@@ -1975,6 +1975,7 @@ pub(crate) mod tests {
 			state_root: BlakeTwo256::trie_root(Vec::new()),
 			digest,
 			extrinsics_root,
+            seed: Default::default(),
 		};
 		let header_hash = header.hash();
 
@@ -2018,6 +2019,7 @@ pub(crate) mod tests {
 						state_root: Default::default(),
 						digest: Default::default(),
 						extrinsics_root: Default::default(),
+                        seed: Default::default(),
 					};
 
 					op.set_block_data(
@@ -2060,6 +2062,7 @@ pub(crate) mod tests {
 				state_root: Default::default(),
 				digest: Default::default(),
 				extrinsics_root: Default::default(),
+				seed: Default::default(),
 			};
 
 			let storage = vec![
@@ -2104,6 +2107,7 @@ pub(crate) mod tests {
 				state_root: Default::default(),
 				digest: Default::default(),
 				extrinsics_root: Default::default(),
+				seed: Default::default(),
 			};
 
 			let storage = vec![
@@ -2151,6 +2155,7 @@ pub(crate) mod tests {
 				state_root: Default::default(),
 				digest: Default::default(),
 				extrinsics_root: Default::default(),
+				seed: Default::default(),
 			};
 
 			header.state_root = op.old_state.storage_root(std::iter::empty()).0.into();
@@ -2186,6 +2191,7 @@ pub(crate) mod tests {
 				state_root: Default::default(),
 				digest: Default::default(),
 				extrinsics_root: Default::default(),
+				seed: Default::default(),
 			};
 
 			let storage: Vec<(_, _)> = vec![];
@@ -2223,6 +2229,7 @@ pub(crate) mod tests {
 				state_root: Default::default(),
 				digest: Default::default(),
 				extrinsics_root: Default::default(),
+				seed: Default::default(),
 			};
 
 			let storage: Vec<(_, _)> = vec![];
@@ -2260,6 +2267,7 @@ pub(crate) mod tests {
 				state_root: Default::default(),
 				digest: Default::default(),
 				extrinsics_root: Default::default(),
+				seed: Default::default(),
 			};
 
 			let storage: Vec<(_, _)> = vec![];

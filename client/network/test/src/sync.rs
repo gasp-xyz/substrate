@@ -359,7 +359,7 @@ fn own_blocks_are_announced() {
 	sp_tracing::try_init_simple();
 	let mut net = TestNet::new(3);
 	net.block_until_sync(); // connect'em
-	net.peer(0).generate_blocks(1, BlockOrigin::Own, |builder| builder.build().unwrap().block);
+	net.peer(0).generate_blocks(1, BlockOrigin::Own, |builder| builder.build(Default::default()).unwrap().block);
 
 	net.block_until_sync();
 

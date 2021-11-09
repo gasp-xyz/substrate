@@ -1926,7 +1926,7 @@ mod test {
 		);
 
 		let (a1_hash, a1_number) = {
-			let a1 = client.new_block(Default::default()).unwrap().build().unwrap().block;
+			let a1 = client.new_block(Default::default()).unwrap().build(Default::default()).unwrap().block;
 			(a1.hash(), *a1.header.number())
 		};
 
@@ -2002,7 +2002,7 @@ mod test {
 
 		let mut new_blocks = |n| {
 			for _ in 0..n {
-				let block = client.new_block(Default::default()).unwrap().build().unwrap().block;
+				let block = client.new_block(Default::default()).unwrap().build(Default::default()).unwrap().block;
 				client.import(BlockOrigin::Own, block.clone()).unwrap();
 			}
 
@@ -2132,7 +2132,7 @@ mod test {
 			block_builder.push_storage_change(vec![1, 2, 3], Some(vec![4, 5, 6])).unwrap();
 		}
 
-		let block = block_builder.build().unwrap().block;
+		let block = block_builder.build(Default::default()).unwrap().block;
 
 		client.import(BlockOrigin::Own, block.clone()).unwrap();
 		block
@@ -2172,7 +2172,7 @@ mod test {
 			// Make sure we generate a different block as fork
 			block_builder.push_storage_change(vec![1, 2, 3], Some(vec![4, 5, 6])).unwrap();
 
-			let block = block_builder.build().unwrap().block;
+			let block = block_builder.build(Default::default()).unwrap().block;
 
 			if import {
 				client2.import(BlockOrigin::Own, block.clone()).unwrap();

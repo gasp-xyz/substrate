@@ -79,6 +79,7 @@ fn first_block_epoch_zero_start() {
 			&Default::default(),
 			&pre_digest,
 			Default::default(),
+			&Default::default(),
 		);
 
 		// see implementation of the function for details why: we issue an
@@ -129,6 +130,7 @@ fn author_vrf_output_for_primary() {
 			&Default::default(),
 			&primary_pre_digest,
 			Default::default(),
+			&Default::default(),
 		);
 		assert_eq!(Babe::author_vrf_randomness(), None);
 
@@ -155,6 +157,7 @@ fn author_vrf_output_for_secondary_vrf() {
 			&Default::default(),
 			&secondary_vrf_pre_digest,
 			Default::default(),
+			&Default::default(),
 		);
 		assert_eq!(Babe::author_vrf_randomness(), None);
 
@@ -178,6 +181,7 @@ fn no_author_vrf_output_for_secondary_plain() {
 			&Default::default(),
 			&secondary_plain_pre_digest,
 			Default::default(),
+			&Default::default(),
 		);
 		assert_eq!(Babe::author_vrf_randomness(), None);
 

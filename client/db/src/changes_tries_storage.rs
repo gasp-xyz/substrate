@@ -564,6 +564,7 @@ mod tests {
 			state_root: BlakeTwo256::trie_root(Vec::new()),
 			digest,
 			extrinsics_root: Default::default(),
+            seed: Default::default(),
 		};
 		let header_hash = header.hash();
 
@@ -912,6 +913,7 @@ mod tests {
 				],
 			},
 			extrinsics_root: Default::default(),
+            seed: Default::default(),
 		};
 		let block3 = header3.hash();
 		let mut op = backend.begin_operation().unwrap();
@@ -937,6 +939,7 @@ mod tests {
 				],
 			},
 			extrinsics_root: Default::default(),
+            seed: Default::default(),
 		};
 		let mut op = backend.begin_operation().unwrap();
 		backend.begin_state_operation(&mut op, BlockId::Hash(block6)).unwrap();

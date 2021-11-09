@@ -179,7 +179,7 @@ fn should_notify_about_storage_changes() {
 			amount: 42,
 			nonce: 0,
 		}).unwrap();
-		let block = builder.build().unwrap().block;
+		let block = builder.build(Default::default()).unwrap().block;
 		client.import(BlockOrigin::Own, block).unwrap();
 	}
 
@@ -221,7 +221,7 @@ fn should_send_initial_storage_changes_and_notifications() {
 			amount: 42,
 			nonce: 0,
 		}).unwrap();
-		let block = builder.build().unwrap().block;
+		let block = builder.build(Default::default()).unwrap().block;
 		client.import(BlockOrigin::Own, block).unwrap();
 	}
 
@@ -256,7 +256,7 @@ fn should_query_storage() {
 			builder.push_storage_change(vec![4], if nonce == 0 { None } else { Some(vec![4]) }).unwrap();
 			// actual change: Some(value1) -> Some(value2)
 			builder.push_storage_change(vec![5], Some(vec![nonce as u8])).unwrap();
-			let block = builder.build().unwrap().block;
+			let block = builder.build(Default::default()).unwrap().block;
 			let hash = block.header.hash();
 			client.import(BlockOrigin::Own, block).unwrap();
 			hash
