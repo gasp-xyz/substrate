@@ -351,6 +351,8 @@ pub fn test_blockchain_query_by_number_gets_canonical<B: 'static>(backend: Arc<B
 	let a1 = client.new_block(Default::default()).unwrap().build(Default::default()).unwrap().block;
 	client.import(BlockOrigin::Own, a1.clone()).unwrap();
 
+    
+
 	// A1 -> A2
 	let a2 = client.new_block_at(
 		&BlockId::Hash(a1.hash()),

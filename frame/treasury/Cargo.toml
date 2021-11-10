@@ -20,7 +20,7 @@ sp-runtime = { version = "3.0.0", default-features = false, path = "../../primit
 frame-support = { version = "3.0.0", default-features = false, path = "../support" }
 frame-system = { version = "3.0.0", default-features = false, path = "../system" }
 impl-trait-for-tuples = "0.2.1"
-orml-tokens = { path = "../../../open-runtime-module-library/tokens", default-features = false, branch="mangata-dev" }
+orml-tokens = { path = "../../../open-runtime-module-library/tokens", default-features = false }
 pallet-balances = { version = "3.0.0", default-features = false, path = "../balances" }
 
 #orml-tokens = { git = 'https://github.com/mangata-finance/open-runtime-module-library', default-features = false, branch="mangata-dev" }

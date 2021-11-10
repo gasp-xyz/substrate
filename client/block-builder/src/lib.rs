@@ -164,27 +164,29 @@ where
 	///
 	/// This will ensure the extrinsic can be validly executed (by executing it).
 	pub fn push(&mut self, xt: <Block as BlockT>::Extrinsic) -> Result<(), ApiErrorFor<A, Block>> {
-		let block_id = &self.block_id;
-		let extrinsics = &mut self.extrinsics;
-
-		self.api.execute_in_transaction(|api| {
-			match api.apply_extrinsic_with_context(
-				block_id,
-				ExecutionContext::BlockConstruction,
-				xt.clone(),
-			) {
-				Ok(Ok(_)) => {
-					extrinsics.push(xt);
-					TransactionOutcome::Commit(Ok(()))
-				}
-				Ok(Err(tx_validity)) => {
-					TransactionOutcome::Rollback(
-						Err(ApplyExtrinsicFailed::Validity(tx_validity).into()),
-					)
-				},
-				Err(e) => TransactionOutcome::Rollback(Err(e)),
-			}
-		})
+        self.extrinsics.push(xt);
+        Ok(())
+		// let block_id = &self.block_id;
+		// let extrinsics = &mut self.extrinsics;
+        //
+		// self.api.execute_in_transaction(|api| {
+		// 	match api.apply_extrinsic_with_context(
+		// 		block_id,
+		// 		ExecutionContext::BlockConstruction,
+		// 		xt.clone(),
+		// 	) {
+		// 		Ok(Ok(_)) => {
+		// 			extrinsics.push(xt);
+		// 			TransactionOutcome::Commit(Ok(()))
+		// 		}
+		// 		Ok(Err(tx_validity)) => {
+		// 			TransactionOutcome::Rollback(
+		// 				Err(ApplyExtrinsicFailed::Validity(tx_validity).into()),
+		// 			)
+		// 		},
+		// 		Err(e) => TransactionOutcome::Rollback(Err(e)),
+		// 	}
+		// })
 	}
 
 	/// Push onto the block's list of extrinsics.
@@ -219,6 +221,7 @@ where
 	///
 	/// validate extrinsics but without commiting the change
 	pub fn record_without_commiting_changes(&mut self, xt: <Block as BlockT>::Extrinsic) -> Result<(), ApiErrorFor<A, Block>>  {
+        println!("recording change");
 		let block_id = &self.block_id;
 		let extrinsics = &mut self.extrinsics;
 
@@ -246,6 +249,7 @@ where
     ///
     /// consequence of delayed block execution
     pub fn apply_previous_block(&mut self, seed: ShufflingSeed){
+        println!("apply pevious block");
 		let parent_hash = self.parent_hash;
 		let block_id = &self.block_id;
 
@@ -257,6 +261,7 @@ where
 		{
 			Some(previous_block_extrinsics) => {
 				log::debug!(target: "block_builder", "transaction count {}", previous_block_extrinsics.len());
+				println!("transaction count {}", previous_block_extrinsics.len());
 				let shuffled_extrinsics = if previous_block_extrinsics.len() <= 1 {
 					previous_block_extrinsics
 				}else{
@@ -270,6 +275,7 @@ where
 
 				for xt in shuffled_extrinsics.iter() {
 					log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
+					println!( "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
 					self.api.execute_in_transaction(|api| {
 						match api.apply_extrinsic_with_context(
 							block_id,

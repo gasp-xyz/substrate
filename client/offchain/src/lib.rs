@@ -337,6 +337,10 @@ mod tests {
 		).unwrap();
 
 		let block = block_builder.build(Default::default()).unwrap().block;
+		client.import(BlockOrigin::Own, block.clone()).unwrap();
+
+		let block_builder = client.new_block_at(&BlockId::Hash(block.header.hash()), Default::default(), false).unwrap();
+		let block = block_builder.build(Default::default()).unwrap().block;
 		client.import(BlockOrigin::Own, block).unwrap();
 
 		assert_eq!(value, &offchain_db.get(sp_offchain::STORAGE_PREFIX, &key).unwrap());
@@ -346,6 +350,10 @@ mod tests {
 			substrate_test_runtime_client::runtime::Extrinsic::OffchainIndexClear(key.to_vec()),
 		).unwrap();
 
+		let block = block_builder.build(Default::default()).unwrap().block;
+		client.import(BlockOrigin::Own, block.clone()).unwrap();
+
+		let block_builder = client.new_block_at(&BlockId::Hash(block.header.hash()), Default::default(), false).unwrap();
 		let block = block_builder.build(Default::default()).unwrap().block;
 		client.import(BlockOrigin::Own, block).unwrap();
 
