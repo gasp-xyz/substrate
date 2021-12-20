@@ -162,6 +162,9 @@ pub enum Error {
 	#[error(transparent)]
 	Application(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 
+	#[error(transparent)]
+	VED(#[from] sp_encrypted_tx::Error),
+
 	// Should be removed/improved once
 	// the storage `fn`s returns typed errors.
 	#[error("Runtime code error: {0}")]

@@ -25,3 +25,4 @@ sp-runtime = { version = "4.0.0-dev", path = "../runtime" }
 sp-state-machine = { version = "0.10.0-dev", path = "../state-machine" }
 sp-database = { version = "4.0.0-dev", path = "../database" }
 sp-api = { version = "4.0.0-dev", path = "../api" }
+sp-encrypted-tx = { version = "4.0.0-dev", path = "../encrypted-tx" }

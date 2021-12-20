@@ -30,6 +30,33 @@ pub enum ExtrinsicType<Hash>{
 	Other,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum Error{
+	#[error("Missing public key for account {0}")]
+	MissingPublicKey(sp_runtime::AccountId32),
+
+	#[error("Cannot find account id of collator: {0}")]
+	UnknownCollatorId(u32),
+
+	#[error("Block builder is unknown")]
+	UnknownBlockBuilder,
+
+	#[error("Cannot find decryption key for public key {0}")]
+	CannotFindDecryptionKey(sp_core::ecdsa::Public),
+
+	#[error("{0} didnt decrypt doubly encrypted transaction")]
+	MissingSinglyEncryptedTransaction(sp_runtime::AccountId32),
+
+	#[error("{0} didnt decrypt singly encrypted transaction")]
+	MissingDecryptedTransaction(sp_runtime::AccountId32),
+
+	#[error("Unexpected decrypting transaction")]
+	UnexpectedDecryptionTransaction,
+
+	#[error("Decrypted payload mismatch")]
+    DecryptedPayloadMismatch,
+}
+
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct EncryptedTx<Hash>{
