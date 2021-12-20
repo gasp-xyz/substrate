@@ -9015,6 +9015,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-encrypted-tx"
+version = "2.0.0"
+dependencies = [
+ "frame-support 4.0.0-dev",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-consensus-babe",
+ "sp-core 4.0.0-dev",
+ "sp-inherents 4.0.0-dev",
+ "sp-runtime 4.0.0-dev",
+ "sp-std 4.0.0-dev",
+]
+
+[[package]]
 name = "sp-externalities"
 version = "0.10.0-dev"
 dependencies = [

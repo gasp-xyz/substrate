@@ -156,6 +156,7 @@ members = [
 	"primitives/core",
 	"primitives/database",
 	"primitives/debug-derive",
+	"primitives/encrypted-tx",
 	"primitives/externalities",
 	"primitives/extrinsic-info-runtime-api",
 	"primitives/finality-grandpa",
