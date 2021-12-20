@@ -384,6 +384,14 @@ impl SyncCryptoStore for KeyStore {
 		let pair = self.ecdsa_key_pair(id, public);
 		pair.map(|k| k.sign_prehashed(msg)).map(Ok).transpose()
 	}
+
+	fn ecdsa_get_pair(
+		&self,
+		id: KeyTypeId,
+		public: &ecdsa::Public,
+	) -> Result<Option<ecdsa::Pair>, Error>{
+        unimplemented!()
+    }
 }
 
 impl Into<SyncCryptoStorePtr> for KeyStore {

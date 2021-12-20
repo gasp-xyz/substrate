@@ -330,6 +330,15 @@ impl SyncCryptoStore for LocalKeystore {
 
 		pair.map(|k| k.sign_prehashed(msg)).map(Ok).transpose()
 	}
+
+	fn ecdsa_get_pair(
+		&self,
+		id: KeyTypeId,
+		public: &ecdsa::Public,
+	) -> std::result::Result<Option<ecdsa::Pair>, TraitError>{
+		self.0.read().key_pair_by_type::<ecdsa::Pair>(public, id)
+            .map_err(|_| TraitError::Unavailable)
+    }
 }
 
 impl Into<SyncCryptoStorePtr> for LocalKeystore {

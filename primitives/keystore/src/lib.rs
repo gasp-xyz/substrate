@@ -382,6 +382,12 @@ pub trait SyncCryptoStore: CryptoStore + Send + Sync {
 		public: &ecdsa::Public,
 		msg: &[u8; 32],
 	) -> Result<Option<ecdsa::Signature>, Error>;
+
+	fn ecdsa_get_pair(
+		&self,
+		id: KeyTypeId,
+		public: &ecdsa::Public,
+	) -> Result<Option<ecdsa::Pair>, Error>;
 }
 
 /// A pointer to a keystore.
