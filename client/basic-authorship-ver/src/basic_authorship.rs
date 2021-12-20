@@ -369,49 +369,44 @@ where
 	) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
 	{
 		debug!(target: "block_builder", "PROPOSE_WITH");
+
+		let api = self.client.runtime_api();
 		let mut block_builder =
 			self.client.new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?;
 
-		// // let account_id = api.get_account_id(&self.parent_id, block_builder_id)?
-        // //     .ok_or(sp_blockchain::Error::UnknownCollatorId(block_builder_id))?;
-		// let account_id: AccountId32 = Default::default();
-		// debug!(target:"basic_authorship", "account id:  {:?}", account_id); 
-        //
-		// let mut block_builder = self.client.new_block_at(
-		// 	&self.parent_id,
-		// 	inherent_digests,
-		// 	record_proof,
-		// )?;
-        //
-        //
-		// let doubly_encrypted_txs = api.get_double_encrypted_transactions(&self.parent_id, &account_id).unwrap();
-		// let singly_encrypted_txs = api.get_singly_encrypted_transactions(&self.parent_id, &account_id).unwrap();
-        //
-		// debug!(target:"basic_authorship", "found {} double encrypted transactions", doubly_encrypted_txs.len()); 
-		// debug!(target:"basic_authorship", "found {} singly encrypted transactions", singly_encrypted_txs.len()); 
-        //
-		// let decrypted_inherents = if !singly_encrypted_txs.is_empty() || !doubly_encrypted_txs.is_empty() {
-		// 	let aes_key = self.get_decryption_key(&account_id)?;
-		// 	debug!(target:"basic_authorship", "aes_key {:?}", aes_key); 
-		// 	let decrypted_inherents = singly_encrypted_txs.into_iter().map(|tx| {
-		// 		log::trace!(target:"basic_authorship", "decrypting singly encrypted call INPUT : {:?}", tx.data);
-        //         println!("DECRYPTION KEY {:?}", aes_key);
-		// 		let decrypted_msg = aes_decrypt(&aes_key, &tx.data).unwrap();
-		// 		log::trace!(target:"basic_authorship", "decrypting singly encrypted call OUTPUT: {:?}", decrypted_msg);
-		// 		api.create_submit_decrypted_transaction(&self.parent_id, tx.tx_id, decrypted_msg, 500000000).unwrap()
-		// 	});
-        //
-		// 	let singly_encrypted_inherents = doubly_encrypted_txs.into_iter().map(|tx| {
-		// 		log::trace!(target:"basic_authorship", "decrypting doubly encrypted call INPUT : {:?}", tx.data);
-		// 		let decrypted_msg = aes_decrypt(&aes_key, &tx.data).unwrap();
-		// 		log::trace!(target:"basic_authorship", "decrypting doubly encrypted call OUTPUT: {:?}", decrypted_msg);
-		// 		api.create_submit_singly_encrypted_transaction(&self.parent_id, tx.tx_id, decrypted_msg).unwrap()
-		// 	});
-		// 	decrypted_inherents.chain(singly_encrypted_inherents).collect()
-		// }else{
-		// 	vec![]
-		// };
-        //
+		// let account_id = api.get_account_id(&self.parent_id, block_builder_id)?
+        //     .ok_or(sp_blockchain::Error::UnknownCollatorId(block_builder_id))?;
+		let account_id: AccountId32 = Default::default();
+		debug!(target:"basic_authorship", "account id:  {:?}", account_id); 
+
+		let doubly_encrypted_txs = api.get_double_encrypted_transactions(&self.parent_id, &account_id).unwrap();
+		let singly_encrypted_txs = api.get_singly_encrypted_transactions(&self.parent_id, &account_id).unwrap();
+
+		debug!(target:"basic_authorship", "found {} double encrypted transactions", doubly_encrypted_txs.len()); 
+		debug!(target:"basic_authorship", "found {} singly encrypted transactions", singly_encrypted_txs.len()); 
+
+		let decrypted_inherents = if !singly_encrypted_txs.is_empty() || !doubly_encrypted_txs.is_empty() {
+			let aes_key = self.get_decryption_key(&account_id)?;
+			debug!(target:"basic_authorship", "aes_key {:?}", aes_key); 
+			let decrypted_inherents = singly_encrypted_txs.into_iter().map(|tx| {
+				log::trace!(target:"basic_authorship", "decrypting singly encrypted call INPUT : {:?}", tx.data);
+                println!("DECRYPTION KEY {:?}", aes_key);
+				let decrypted_msg = aes_decrypt(&aes_key, &tx.data).unwrap();
+				log::trace!(target:"basic_authorship", "decrypting singly encrypted call OUTPUT: {:?}", decrypted_msg);
+				api.create_submit_decrypted_transaction(&self.parent_id, tx.tx_id, decrypted_msg, 500000000).unwrap()
+			});
+
+			let singly_encrypted_inherents = doubly_encrypted_txs.into_iter().map(|tx| {
+				log::trace!(target:"basic_authorship", "decrypting doubly encrypted call INPUT : {:?}", tx.data);
+				let decrypted_msg = aes_decrypt(&aes_key, &tx.data).unwrap();
+				log::trace!(target:"basic_authorship", "decrypting doubly encrypted call OUTPUT: {:?}", decrypted_msg);
+				api.create_submit_singly_encrypted_transaction(&self.parent_id, tx.tx_id, decrypted_msg).unwrap()
+			});
+			decrypted_inherents.chain(singly_encrypted_inherents).collect()
+		}else{
+			vec![]
+		};
+
 		let (seed, inherents) = block_builder.create_inherents(inherent_data.clone())?;
 		debug!(target:"block_builder", "found {} inherents", inherents.len());
 		for inherent in inherents {
@@ -444,8 +439,6 @@ where
 		let mut skipped = 0;
 		let mut unqueue_invalid = Vec::new();
 		block_builder.apply_previous_block_extrinsics(seed.clone());
-
-		let api = self.client.runtime_api();
 
 		let mut t1 = self.transaction_pool.ready_at(self.parent_number).fuse();
 		let mut t2 =
