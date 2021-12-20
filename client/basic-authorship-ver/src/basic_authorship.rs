@@ -22,6 +22,7 @@
 
 use codec::{Decode, Encode};
 use extrinsic_info_runtime_api::runtime_api::ExtrinsicInfoRuntimeApi;
+use sp_encrypted_tx::EncryptedTxApi;
 use futures::{
 	channel::oneshot,
 	future,
@@ -31,7 +32,7 @@ use futures::{
 use log::{debug, error, info, trace, warn};
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::backend;
-use sc_keystore::LocalKeystore;
+use sp_keystore::SyncCryptoStorePtr;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, ProvideRuntimeApi, TransactionOutcome};
@@ -43,6 +44,7 @@ use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::{
     AccountId32,
+    KeyTypeId,
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, DigestFor, Hash as HashT, Header as HeaderT},
 };
@@ -82,7 +84,7 @@ pub struct ProposerFactory<A, B, C, PR> {
 	/// phantom member to pin the `Backend`/`ProofRecording` type.
 	_phantom: PhantomData<(B, PR)>,
 	/// keystore for encrypted transactions
-	keystore: Arc<LocalKeystore>,
+	keystore: SyncCryptoStorePtr,
 }
 
 impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
@@ -96,7 +98,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
 		transaction_pool: Arc<A>,
 		prometheus: Option<&PrometheusRegistry>,
 		telemetry: Option<TelemetryHandle>,
-		keystore: Arc<LocalKeystore>,
+		keystore: SyncCryptoStorePtr,
 	) -> Self {
 		ProposerFactory {
 			spawn_handle: Box::new(spawn_handle),
@@ -125,7 +127,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
 		transaction_pool: Arc<A>,
 		prometheus: Option<&PrometheusRegistry>,
 		telemetry: Option<TelemetryHandle>,
-		keystore: Arc<LocalKeystore>,
+		keystore: SyncCryptoStorePtr,
 	) -> Self {
 		ProposerFactory {
 			client,
@@ -217,6 +219,7 @@ where
 		+ 'static,
 	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
 		+ BlockBuilderApi<Block>
+		+ EncryptedTxApi<Block>
 		+ ExtrinsicInfoRuntimeApi<Block>,
 	PR: ProofRecording,
 {
@@ -242,7 +245,7 @@ pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
 	default_block_size_limit: usize,
 	include_proof_in_block_size_estimation: bool,
 	telemetry: Option<TelemetryHandle>,
-	keystore: Arc<LocalKeystore>,
+	keystore: SyncCryptoStorePtr,
 	_phantom: PhantomData<(B, PR)>,
 }
 
@@ -259,6 +262,7 @@ where
 		+ 'static,
 	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
 		+ BlockBuilderApi<Block>
+		+ EncryptedTxApi<Block>
 		+ ExtrinsicInfoRuntimeApi<Block>,
 	PR: ProofRecording,
 {
@@ -327,32 +331,33 @@ where
 		+ 'static,
 	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
 		+ BlockBuilderApi<Block>
+		+ EncryptedTxApi<Block>
 		+ ExtrinsicInfoRuntimeApi<Block>,
 	PR: ProofRecording,
 {
 
     fn get_decryption_key(&self, account_id: &AccountId32) -> sp_blockchain::Result<[u8;32]>{
 
-		panic!("sadfsdf");
 		let keystore = self.keystore.clone();
-        //
-        // let api = self.client.runtime_api();
-		// let public_key = api.get_authority_public_key(&self.parent_id, account_id)?
-        //     .ok_or(sp_blockchain::Error::MissingPublicKey(account_id.clone()))?;
-        //
-		// debug!(target:"basic_authorship","public_key id:  {:?}", public_key);
-        //
-		// let key_pair = keystore.clone().read().key_pair_by_type::<sp_core::ecdsa::Pair>(&public_key, KeyTypeId(*b"xxtx"))
-        //     .map_err(|_| sp_blockchain::Error::CannotFindDecryptionKey(public_key))?;
-        //
-		// let seed: [u8; 32] = key_pair.seed();
-		// let priv_key: SecretKey = SecretKey::parse_slice(&seed).unwrap();
-        //
-		// let dummy_secret_key: SecretKey = SecretKey::default();
-		// let pub_key: PublicKey = PublicKey::from_secret_key(&dummy_secret_key);
-        //
-		// decapsulate(&pub_key, &priv_key)
-        //     .map_err(|_| sp_blockchain::Error::Backend(String::from("cannot decapsulate aes key for decryption")))
+
+        let api = self.client.runtime_api();
+		let public_key = api.get_authority_public_key(&self.parent_id, account_id)?
+            .ok_or(sp_encrypted_tx::Error::MissingPublicKey(account_id.clone()))?;
+
+		debug!(target:"basic_authorship","public_key id:  {:?}", public_key);
+
+		let key_pair = keystore.ecdsa_get_pair(KeyTypeId(*b"xxtx"), &public_key)
+            .map_err(|_| sp_encrypted_tx::Error::CannotFindDecryptionKey(public_key.clone()))?
+            .ok_or(sp_encrypted_tx::Error::CannotFindDecryptionKey(public_key))?;
+
+		let seed: [u8; 32] = key_pair.seed();
+		let priv_key: SecretKey = SecretKey::parse_slice(&seed).unwrap();
+
+		let dummy_secret_key: SecretKey = SecretKey::default();
+		let pub_key: PublicKey = PublicKey::from_secret_key(&dummy_secret_key);
+
+		decapsulate(&pub_key, &priv_key)
+            .map_err(|_| sp_blockchain::Error::Backend(String::from("cannot decapsulate aes key for decryption")))
     }
 
 	async fn propose_with(

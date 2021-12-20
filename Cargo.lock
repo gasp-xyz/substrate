@@ -7179,7 +7179,6 @@ dependencies = [
  "parking_lot 0.11.2",
  "sc-block-builder-ver",
  "sc-client-api",
- "sc-keystore",
  "sc-proposer-metrics",
  "sc-telemetry",
  "sc-transaction-pool",
@@ -7188,7 +7187,9 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-core 4.0.0-dev",
+ "sp-encrypted-tx",
  "sp-inherents 4.0.0-dev",
+ "sp-keystore 0.10.0-dev",
  "sp-runtime 4.0.0-dev",
  "sp-ver",
  "substrate-prometheus-endpoint",
@@ -8888,6 +8889,7 @@ dependencies = [
  "sp-api",
  "sp-consensus",
  "sp-database",
+ "sp-encrypted-tx",
  "sp-runtime 4.0.0-dev",
  "sp-state-machine 0.10.0-dev",
  "thiserror",
@@ -9107,7 +9109,7 @@ dependencies = [
 
 [[package]]
 name = "sp-encrypted-tx"
-version = "2.0.0"
+version = "4.0.0-dev"
 dependencies = [
  "frame-support 4.0.0-dev",
  "parity-scale-codec",
@@ -9118,6 +9120,7 @@ dependencies = [
  "sp-inherents 4.0.0-dev",
  "sp-runtime 4.0.0-dev",
  "sp-std 4.0.0-dev",
+ "thiserror",
 ]
 
 [[package]]
