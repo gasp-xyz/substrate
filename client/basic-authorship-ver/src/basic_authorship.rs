@@ -31,6 +31,7 @@ use futures::{
 use log::{debug, error, info, trace, warn};
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::backend;
+use sc_keystore::LocalKeystore;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, ProvideRuntimeApi, TransactionOutcome};
@@ -41,6 +42,7 @@ use sp_consensus::{
 use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::{
+    AccountId32,
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, DigestFor, Hash as HashT, Header as HeaderT},
 };
@@ -49,6 +51,7 @@ use std::{marker::PhantomData, pin::Pin, sync::Arc, time};
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::MetricsLink as PrometheusMetrics;
 use sp_inherents::InherentDataProvider;
+use ecies::{utils::{aes_decrypt, decapsulate}, SecretKey, PublicKey};
 
 /// Default block size limit in bytes used by [`Proposer`].
 ///
@@ -78,6 +81,8 @@ pub struct ProposerFactory<A, B, C, PR> {
 	include_proof_in_block_size_estimation: bool,
 	/// phantom member to pin the `Backend`/`ProofRecording` type.
 	_phantom: PhantomData<(B, PR)>,
+	/// keystore for encrypted transactions
+	keystore: Arc<LocalKeystore>,
 }
 
 impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
@@ -91,6 +96,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
 		transaction_pool: Arc<A>,
 		prometheus: Option<&PrometheusRegistry>,
 		telemetry: Option<TelemetryHandle>,
+		keystore: Arc<LocalKeystore>,
 	) -> Self {
 		ProposerFactory {
 			spawn_handle: Box::new(spawn_handle),
@@ -101,6 +107,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
 			client,
 			include_proof_in_block_size_estimation: false,
 			_phantom: PhantomData,
+			keystore: keystore.clone(),
 		}
 	}
 }
@@ -118,6 +125,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
 		transaction_pool: Arc<A>,
 		prometheus: Option<&PrometheusRegistry>,
 		telemetry: Option<TelemetryHandle>,
+		keystore: Arc<LocalKeystore>,
 	) -> Self {
 		ProposerFactory {
 			client,
@@ -128,6 +136,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
 			telemetry,
 			include_proof_in_block_size_estimation: true,
 			_phantom: PhantomData,
+			keystore: keystore.clone()
 		}
 	}
 
@@ -188,6 +197,7 @@ where
 			telemetry: self.telemetry.clone(),
 			_phantom: PhantomData,
 			include_proof_in_block_size_estimation: self.include_proof_in_block_size_estimation,
+			keystore: self.keystore.clone(),
 		};
 
 		proposer
@@ -232,6 +242,7 @@ pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
 	default_block_size_limit: usize,
 	include_proof_in_block_size_estimation: bool,
 	telemetry: Option<TelemetryHandle>,
+	keystore: Arc<LocalKeystore>,
 	_phantom: PhantomData<(B, PR)>,
 }
 
@@ -319,6 +330,31 @@ where
 		+ ExtrinsicInfoRuntimeApi<Block>,
 	PR: ProofRecording,
 {
+
+    fn get_decryption_key(&self, account_id: &AccountId32) -> sp_blockchain::Result<[u8;32]>{
+
+		panic!("sadfsdf");
+		let keystore = self.keystore.clone();
+        //
+        // let api = self.client.runtime_api();
+		// let public_key = api.get_authority_public_key(&self.parent_id, account_id)?
+        //     .ok_or(sp_blockchain::Error::MissingPublicKey(account_id.clone()))?;
+        //
+		// debug!(target:"basic_authorship","public_key id:  {:?}", public_key);
+        //
+		// let key_pair = keystore.clone().read().key_pair_by_type::<sp_core::ecdsa::Pair>(&public_key, KeyTypeId(*b"xxtx"))
+        //     .map_err(|_| sp_blockchain::Error::CannotFindDecryptionKey(public_key))?;
+        //
+		// let seed: [u8; 32] = key_pair.seed();
+		// let priv_key: SecretKey = SecretKey::parse_slice(&seed).unwrap();
+        //
+		// let dummy_secret_key: SecretKey = SecretKey::default();
+		// let pub_key: PublicKey = PublicKey::from_secret_key(&dummy_secret_key);
+        //
+		// decapsulate(&pub_key, &priv_key)
+        //     .map_err(|_| sp_blockchain::Error::Backend(String::from("cannot decapsulate aes key for decryption")))
+    }
+
 	async fn propose_with(
 		self,
 		inherent_data: InherentData,
@@ -331,6 +367,46 @@ where
 		let mut block_builder =
 			self.client.new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?;
 
+		// // let account_id = api.get_account_id(&self.parent_id, block_builder_id)?
+        // //     .ok_or(sp_blockchain::Error::UnknownCollatorId(block_builder_id))?;
+		// let account_id: AccountId32 = Default::default();
+		// debug!(target:"basic_authorship", "account id:  {:?}", account_id); 
+        //
+		// let mut block_builder = self.client.new_block_at(
+		// 	&self.parent_id,
+		// 	inherent_digests,
+		// 	record_proof,
+		// )?;
+        //
+        //
+		// let doubly_encrypted_txs = api.get_double_encrypted_transactions(&self.parent_id, &account_id).unwrap();
+		// let singly_encrypted_txs = api.get_singly_encrypted_transactions(&self.parent_id, &account_id).unwrap();
+        //
+		// debug!(target:"basic_authorship", "found {} double encrypted transactions", doubly_encrypted_txs.len()); 
+		// debug!(target:"basic_authorship", "found {} singly encrypted transactions", singly_encrypted_txs.len()); 
+        //
+		// let decrypted_inherents = if !singly_encrypted_txs.is_empty() || !doubly_encrypted_txs.is_empty() {
+		// 	let aes_key = self.get_decryption_key(&account_id)?;
+		// 	debug!(target:"basic_authorship", "aes_key {:?}", aes_key); 
+		// 	let decrypted_inherents = singly_encrypted_txs.into_iter().map(|tx| {
+		// 		log::trace!(target:"basic_authorship", "decrypting singly encrypted call INPUT : {:?}", tx.data);
+        //         println!("DECRYPTION KEY {:?}", aes_key);
+		// 		let decrypted_msg = aes_decrypt(&aes_key, &tx.data).unwrap();
+		// 		log::trace!(target:"basic_authorship", "decrypting singly encrypted call OUTPUT: {:?}", decrypted_msg);
+		// 		api.create_submit_decrypted_transaction(&self.parent_id, tx.tx_id, decrypted_msg, 500000000).unwrap()
+		// 	});
+        //
+		// 	let singly_encrypted_inherents = doubly_encrypted_txs.into_iter().map(|tx| {
+		// 		log::trace!(target:"basic_authorship", "decrypting doubly encrypted call INPUT : {:?}", tx.data);
+		// 		let decrypted_msg = aes_decrypt(&aes_key, &tx.data).unwrap();
+		// 		log::trace!(target:"basic_authorship", "decrypting doubly encrypted call OUTPUT: {:?}", decrypted_msg);
+		// 		api.create_submit_singly_encrypted_transaction(&self.parent_id, tx.tx_id, decrypted_msg).unwrap()
+		// 	});
+		// 	decrypted_inherents.chain(singly_encrypted_inherents).collect()
+		// }else{
+		// 	vec![]
+		// };
+        //
 		let (seed, inherents) = block_builder.create_inherents(inherent_data.clone())?;
 		debug!(target:"block_builder", "found {} inherents", inherents.len());
 		for inherent in inherents {
