@@ -30,6 +30,7 @@ pub enum ExtrinsicType<Hash>{
 	Other,
 }
 
+#[cfg(feature = "std")]
 #[derive(Debug, thiserror::Error)]
 pub enum Error{
 	#[error("Missing public key for account {0}")]
