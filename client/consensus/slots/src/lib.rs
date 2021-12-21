@@ -119,9 +119,13 @@ fn inject_inherents<'a, B: BlockT>(
 		return Err(sp_consensus::Error::StateUnavailable(String::from("signing seed failure")))
 	};
 
-	// let signature =
-	// 	.map_err(|_| sp_consensus::Error::StateUnavailable(String::from("signing seed failure")))?;
-	//
+    // BlockAuthorInherentDataProvider(Default::default())
+    // .provide_inherent_data(&mut slot_info.inherent_data)
+    // .map_err(|_| {
+    //     sp_consensus::Error::StateUnavailable(String::from(
+    //         "cannot inject RandomSeed inherent data",
+    //     ))
+    // })?;
 
 	Ok(())
 }

@@ -36,7 +36,7 @@ pub enum Error{
 	MissingPublicKey(sp_runtime::AccountId32),
 
 	#[error("Cannot find account id of collator: {0}")]
-	UnknownCollatorId(u32),
+	UnknownCollatorId(u64),
 
 	#[error("Block builder is unknown")]
 	UnknownBlockBuilder,
@@ -83,7 +83,7 @@ sp_api::decl_runtime_apis! {
 		fn get_singly_encrypted_transactions(block_builder_id: &AccountId32) -> Vec<EncryptedTx<<Block as BlockT>::Hash>>;
 
         // fetches address assigned to authority id
-		fn get_account_id(block_builder_id: u32) -> Option<AccountId32>;
+		fn get_account_id(block_builder_id: u64) -> Option<AccountId32>;
 
         // use autority id to identify public key (from encrypted transactions apllet)
 		fn get_authority_public_key(authority_id: &AccountId32) -> Option<sp_core::ecdsa::Public>;

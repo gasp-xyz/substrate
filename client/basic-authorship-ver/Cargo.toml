@@ -34,6 +34,7 @@ sp-ver = { path='../../primitives/ver', version='4.0.0-dev' }
 ecies = { git="https://github.com/mangata-finance/ecies-rs", branch="mangata-dev", version = "0.2", default-features = false, features = ["openssl"]}
 sp-keystore = { version = "0.10.0-dev", path = "../../primitives/keystore" }
 sp-encrypted-tx = { version = "4.0.0-dev", path = "../../primitives/encrypted-tx" }
+sp-consensus-aura = { version = "0.10.0-dev", path = "../../primitives/consensus/aura" }
 
 [dev-dependencies]
 sc-transaction-pool = { version = "4.0.0-dev", path = "../transaction-pool" }

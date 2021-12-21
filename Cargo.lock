@@ -7186,6 +7186,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
+ "sp-consensus-aura",
  "sp-core 4.0.0-dev",
  "sp-encrypted-tx",
  "sp-inherents 4.0.0-dev",

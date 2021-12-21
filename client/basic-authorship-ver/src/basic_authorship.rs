@@ -23,6 +23,7 @@
 use codec::{Decode, Encode};
 use extrinsic_info_runtime_api::runtime_api::ExtrinsicInfoRuntimeApi;
 use sp_encrypted_tx::EncryptedTxApi;
+use std::ops::Deref;
 use futures::{
 	channel::oneshot,
 	future,
@@ -40,7 +41,10 @@ use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed,
 use sp_consensus::{
 	evaluation, DisableProofRecording, EnableProofRecording, ProofRecording, Proposal,
 };
+use sp_runtime::traits::DigestItemFor;
+use sp_consensus_aura::digests::CompatibleDigestItem;
 use sp_core::traits::SpawnNamed;
+use sp_core::crypto::Pair;
 use sp_inherents::InherentData;
 use sp_runtime::{
     AccountId32,
@@ -372,11 +376,19 @@ where
 
 		let api = self.client.runtime_api();
 		let mut block_builder =
-			self.client.new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?;
+			self.client.new_block_at(&self.parent_id, inherent_digests.clone(), PR::ENABLED)?;
 
-		// let account_id = api.get_account_id(&self.parent_id, block_builder_id)?
-        //     .ok_or(sp_blockchain::Error::UnknownCollatorId(block_builder_id))?;
-		let account_id: AccountId32 = Default::default();
+        let block_builder_id = inherent_digests.logs().iter()
+            .map(|l|
+                <DigestItemFor<Block> as CompatibleDigestItem::<<sp_core::ed25519::Pair as Pair>::Signature>>::as_aura_pre_digest(&l)
+            )
+            .find(|d| d.is_some())
+            .and_then(|id| id)
+            .ok_or_else(|| sp_encrypted_tx::Error::UnknownBlockBuilder)?;
+
+
+		let account_id = api.get_account_id(&self.parent_id, *block_builder_id)?
+            .ok_or(sp_encrypted_tx::Error::UnknownCollatorId(*block_builder_id))?;
 		debug!(target:"basic_authorship", "account id:  {:?}", account_id); 
 
 		let doubly_encrypted_txs = api.get_double_encrypted_transactions(&self.parent_id, &account_id).unwrap();
@@ -390,7 +402,6 @@ where
 			debug!(target:"basic_authorship", "aes_key {:?}", aes_key); 
 			let decrypted_inherents = singly_encrypted_txs.into_iter().map(|tx| {
 				log::trace!(target:"basic_authorship", "decrypting singly encrypted call INPUT : {:?}", tx.data);
-                println!("DECRYPTION KEY {:?}", aes_key);
 				let decrypted_msg = aes_decrypt(&aes_key, &tx.data).unwrap();
 				log::trace!(target:"basic_authorship", "decrypting singly encrypted call OUTPUT: {:?}", decrypted_msg);
 				api.create_submit_decrypted_transaction(&self.parent_id, tx.tx_id, decrypted_msg, 500000000).unwrap()
