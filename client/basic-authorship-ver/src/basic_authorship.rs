@@ -21,7 +21,7 @@
 // FIXME #1021 move this into sp-consensus
 
 use codec::{Decode, Encode};
-use extrinsic_info_runtime_api::runtime_api::ExtrinsicInfoRuntimeApi;
+use ver_api::VerApi;
 use sp_encrypted_tx::EncryptedTxApi;
 use std::ops::Deref;
 use futures::{
@@ -57,7 +57,9 @@ use std::{marker::PhantomData, pin::Pin, sync::Arc, time};
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::MetricsLink as PrometheusMetrics;
 use sp_inherents::InherentDataProvider;
+use sp_runtime::traits::One;
 use ecies::{utils::{aes_decrypt, decapsulate}, SecretKey, PublicKey};
+use std::ops::Add;
 
 /// Default block size limit in bytes used by [`Proposer`].
 ///
@@ -224,7 +226,7 @@ where
 	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
 		+ BlockBuilderApi<Block>
 		+ EncryptedTxApi<Block>
-		+ ExtrinsicInfoRuntimeApi<Block>,
+		+ VerApi<Block>,
 	PR: ProofRecording,
 {
 	type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
@@ -267,7 +269,7 @@ where
 	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
 		+ BlockBuilderApi<Block>
 		+ EncryptedTxApi<Block>
-		+ ExtrinsicInfoRuntimeApi<Block>,
+		+ VerApi<Block>,
 	PR: ProofRecording,
 {
 	type Transaction = backend::TransactionFor<B, Block>;
@@ -336,7 +338,7 @@ where
 	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
 		+ BlockBuilderApi<Block>
 		+ EncryptedTxApi<Block>
-		+ ExtrinsicInfoRuntimeApi<Block>,
+		+ VerApi<Block>,
 	PR: ProofRecording,
 {
 
@@ -372,9 +374,11 @@ where
 		block_size_limit: Option<usize>,
 	) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
 	{
-		debug!(target: "block_builder", "PROPOSE_WITH");
-
 		let api = self.client.runtime_api();
+        let next_block_number = self.parent_number.add(One::one()).add(One::one());
+        let omit_transactions = api.is_new_session(&self.parent_id, next_block_number).unwrap();
+
+
 		let mut block_builder =
 			self.client.new_block_at(&self.parent_id, inherent_digests.clone(), PR::ENABLED)?;
 
@@ -474,10 +478,15 @@ where
 		let mut transaction_pushed = false;
 		let mut hit_block_size_limit = false;
 
+
 		// after previous block is applied it is possible to prevalidate incomming transaction
 		// but eventually changess needs to be rolled back, as those can be executed
 		// only in the following(future) block
 		api.execute_in_transaction(|api| {
+			if omit_transactions {
+				debug!(target:"block_builder", "new session starts in next block, omiting transaction from the pool");
+				return TransactionOutcome::Rollback(());
+			}
 			while let Some(pending_tx) = pending_iterator.next() {
 				let now = (self.now)();
 				if now > deadline {

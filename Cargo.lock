@@ -1798,25 +1798,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "extrinsic-info-runtime-api"
-version = "4.0.0-dev"
-dependencies = [
- "derive_more",
- "futures 0.3.18",
- "log 0.4.14",
- "parity-scale-codec",
- "serde",
- "sp-api",
- "sp-blockchain",
- "sp-runtime 4.0.0-dev",
-]
-
-[[package]]
 name = "extrinsic-shuffler"
 version = "4.0.0-dev"
 dependencies = [
  "derive_more",
- "extrinsic-info-runtime-api",
  "log 0.4.14",
  "sp-api",
  "sp-block-builder",
@@ -1824,6 +1809,7 @@ dependencies = [
  "sp-runtime 4.0.0-dev",
  "sp-std 4.0.0-dev",
  "sp-ver",
+ "ver-api",
 ]
 
 [[package]]
@@ -7171,7 +7157,6 @@ version = "0.10.0-dev"
 dependencies = [
  "ecies",
  "env_logger 0.9.0",
- "extrinsic-info-runtime-api",
  "futures 0.3.18",
  "futures-timer 3.0.2",
  "log 0.4.14",
@@ -7195,6 +7180,7 @@ dependencies = [
  "sp-ver",
  "substrate-prometheus-endpoint",
  "substrate-test-runtime-client",
+ "ver-api",
 ]
 
 [[package]]
@@ -7217,7 +7203,6 @@ dependencies = [
 name = "sc-block-builder-ver"
 version = "0.10.0-dev"
 dependencies = [
- "extrinsic-info-runtime-api",
  "extrinsic-shuffler",
  "log 0.4.14",
  "parity-scale-codec",
@@ -7231,6 +7216,7 @@ dependencies = [
  "sp-state-machine 0.10.0-dev",
  "sp-ver",
  "substrate-test-runtime-client",
+ "ver-api",
 ]
 
 [[package]]
@@ -8046,7 +8032,6 @@ dependencies = [
  "async-trait",
  "directories",
  "exit-future",
- "extrinsic-info-runtime-api",
  "futures 0.3.18",
  "futures-timer 3.0.2",
  "hash-db",
@@ -8105,6 +8090,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-futures",
+ "ver-api",
 ]
 
 [[package]]
@@ -10100,7 +10086,6 @@ name = "substrate-test-runtime"
 version = "2.0.0"
 dependencies = [
  "cfg-if 1.0.0",
- "extrinsic-info-runtime-api",
  "frame-support 4.0.0-dev",
  "frame-system 4.0.0-dev",
  "frame-system-rpc-runtime-api",
@@ -10141,13 +10126,13 @@ dependencies = [
  "substrate-test-runtime-client",
  "substrate-wasm-builder",
  "trie-db",
+ "ver-api",
 ]
 
 [[package]]
 name = "substrate-test-runtime-client"
 version = "2.0.0"
 dependencies = [
- "extrinsic-info-runtime-api",
  "futures 0.3.18",
  "parity-scale-codec",
  "sc-block-builder",
@@ -10161,6 +10146,7 @@ dependencies = [
  "sp-runtime 4.0.0-dev",
  "substrate-test-client",
  "substrate-test-runtime",
+ "ver-api",
 ]
 
 [[package]]
@@ -11007,6 +10993,20 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+
+[[package]]
+name = "ver-api"
+version = "4.0.0-dev"
+dependencies = [
+ "derive_more",
+ "futures 0.3.18",
+ "log 0.4.14",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime 4.0.0-dev",
+]
 
 [[package]]
 name = "version_check"
