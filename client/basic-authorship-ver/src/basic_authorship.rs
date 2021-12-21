@@ -424,7 +424,7 @@ where
 
 		let (seed, inherents) = block_builder.create_inherents(inherent_data.clone())?;
 		debug!(target:"block_builder", "found {} inherents", inherents.len());
-		for inherent in inherents {
+		for inherent in inherents.into_iter().chain(decrypted_inherents.into_iter()) {
 			debug!(target:"block_builder", "processing inherent");
             // TODO now it actually commits changes
 			match block_builder.push(inherent) {
