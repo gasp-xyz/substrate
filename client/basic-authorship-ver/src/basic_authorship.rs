@@ -401,7 +401,7 @@ where
 		debug!(target:"basic_authorship", "found {} double encrypted transactions", doubly_encrypted_txs.len()); 
 		debug!(target:"basic_authorship", "found {} singly encrypted transactions", singly_encrypted_txs.len()); 
 
-		let decrypted_inherents = if !singly_encrypted_txs.is_empty() || !doubly_encrypted_txs.is_empty() {
+		let decrypted_inherents = if !omit_transactions && (!singly_encrypted_txs.is_empty() || !doubly_encrypted_txs.is_empty()) {
 			let aes_key = self.get_decryption_key(&account_id)?;
 			debug!(target:"basic_authorship", "aes_key {:?}", aes_key); 
 			let decrypted_inherents = singly_encrypted_txs.into_iter().map(|tx| {
