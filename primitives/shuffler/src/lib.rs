@@ -207,7 +207,10 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::{collections::{BTreeSet, HashMap}, str::FromStr};
+	use std::{
+		collections::{BTreeSet, HashMap},
+		str::FromStr,
+	};
 
 	#[test]
 	fn shuffle_using_seed_works() {
@@ -327,23 +330,21 @@ mod tests {
 	#[test]
 	fn check_shuffling_works_for_two_elements() {
 		let mut fy = FisherYates::from_bytes([
-			1,2,3,4,5,6,7,8,
-			1,2,3,4,5,6,7,8,
-			1,2,3,4,5,6,7,8,
-			1,2,3,4,5,6,7,8,
+			1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5,
+			6, 7, 8,
 		]);
 
 		let mut set = HashMap::new();
 		let count = 100000;
 
 		for _ in 1..count {
-			let mut input = [1,2];
-			fy.shuffle(& mut input[..]);
+			let mut input = [1, 2];
+			fy.shuffle(&mut input[..]);
 			*set.entry(input).or_insert(1) += 1;
 		}
 
-		let first_variant = *set.get(&[1,2]).unwrap() as f64 / count as f64; 
-		let second_variant = *set.get(&[2,1]).unwrap() as f64 / count as f64; 
+		let first_variant = *set.get(&[1, 2]).unwrap() as f64 / count as f64;
+		let second_variant = *set.get(&[2, 1]).unwrap() as f64 / count as f64;
 
 		assert_eq!(set.len(), 2);
 		assert!(first_variant >= 0.499);
@@ -353,25 +354,23 @@ mod tests {
 	#[test]
 	fn check_shuffling_works_for_three_elements() {
 		let mut fy = FisherYates::from_bytes([
-			1,2,3,4,5,6,7,8,
-			1,2,3,4,5,6,7,8,
-			1,2,3,4,5,6,7,8,
-			1,2,3,4,5,6,7,8,
+			1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5,
+			6, 7, 8,
 		]);
 
 		let mut set = HashMap::new();
 		let count = 100000;
 
 		for _ in 1..count {
-			let mut input = [1,2,3];
-			fy.shuffle(& mut input[..]);
+			let mut input = [1, 2, 3];
+			fy.shuffle(&mut input[..]);
 			*set.entry(input).or_insert(1) += 1;
 		}
 
-		assert_eq!(set.len(), 3*2*1);
+		assert_eq!(set.len(), 3 * 2 * 1);
 
 		for (_, number_of_occurances) in set {
-			let expected_number_of_occurances = count as f64 / (3*2*1) as f64 * 0.98;
+			let expected_number_of_occurances = count as f64 / (3 * 2 * 1) as f64 * 0.98;
 			assert!(number_of_occurances as f64 >= expected_number_of_occurances);
 		}
 	}
