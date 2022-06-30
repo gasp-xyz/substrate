@@ -309,46 +309,43 @@ where
 		let block_id = &self.block_id;
 		self.api.store_seed(&block_id, seed.seed).unwrap();
 
-		let previous_block_header =
-			self.backend.blockchain().header(BlockId::Hash(parent_hash)).unwrap().unwrap();
+		// let previous_block_header =
+		// 	self.backend.blockchain().header(BlockId::Hash(parent_hash)).unwrap().unwrap();
+        //
+		// let previous_block_extrinsics = self
+		// 	.backend
+		// 	.blockchain()
+		// 	.body(BlockId::Hash(parent_hash))
+		// 	.unwrap()
+		// 	.unwrap_or_default();
+        //
+		// let prev_block_extrinsics_count =
+		// 	previous_block_header.count().clone().saturated_into::<usize>();
+		// log::debug!(target: "block_builder", "previous block has {} transactions, {} comming from that block", previous_block_extrinsics.len(), prev_block_extrinsics_count);
+        //
+		// let previous_block_extrinsics = previous_block_extrinsics
+		// 	.iter()
+		// 	.take(prev_block_extrinsics_count)
+		// 	.cloned()
+		// 	.collect::<Vec<_>>();
+        //
+		// // filter out extrinsics only
+		// let extrinsics = previous_block_extrinsics
+		// 	.into_iter()
+		// 	.filter(|e| {
+		// 		self.api
+		// 			.execute_in_transaction(|api| match api.get_signer(&self.block_id, e.clone()) {
+		// 				Ok(result) => TransactionOutcome::Rollback(result),
+		// 				Err(_) => TransactionOutcome::Rollback(None),
+		// 			})
+		// 			.is_some()
+		// 	})
+		// 	.collect::<Vec<_>>();
 
-		let previous_block_extrinsics = self
-			.backend
-			.blockchain()
-			.body(BlockId::Hash(parent_hash))
-			.unwrap()
-			.unwrap_or_default();
-
-		let prev_block_extrinsics_count =
-			previous_block_header.count().clone().saturated_into::<usize>();
-		log::debug!(target: "block_builder", "previous block has {} transactions, {} comming from that block", previous_block_extrinsics.len(), prev_block_extrinsics_count);
-
-		let previous_block_extrinsics = previous_block_extrinsics
-			.iter()
-			.take(prev_block_extrinsics_count)
-			.cloned()
-			.collect::<Vec<_>>();
-
-		// filter out extrinsics only
-		let extrinsics = previous_block_extrinsics
-			.into_iter()
-			.filter(|e| {
-				self.api
-					.execute_in_transaction(|api| match api.get_signer(&self.block_id, e.clone()) {
-						Ok(result) => TransactionOutcome::Rollback(result),
-						Err(_) => TransactionOutcome::Rollback(None),
-					})
-					.is_some()
-			})
-			.collect::<Vec<_>>();
-
-		self.previous_block_extrinsics = Some(extrinsics.clone());
+		self.previous_block_extrinsics = Some(Vec::new());
 		let to_be_executed = self
 			.inherents
-			.clone()
-			.into_iter()
-			.chain(extrinsics.into_iter())
-			.collect::<Vec<_>>();
+			.clone();
 
 		let shuffled_extrinsics = extrinsic_shuffler::shuffle::<Block, A>(
 			&self.api,
