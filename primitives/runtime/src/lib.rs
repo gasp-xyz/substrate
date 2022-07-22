@@ -717,6 +717,7 @@ impl PartialEq for DispatchError {
 /// For example, if the dispatching of an extrinsic involves inclusion fee payment then these
 /// changes are going to be preserved even if the call dispatched failed.
 pub type DispatchOutcome = Result<(), DispatchError>;
+pub type PreDispatchOutcome = Result<Vec<u8>, DispatchError>;
 
 /// The result of applying of an extrinsic.
 ///

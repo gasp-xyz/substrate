@@ -32,6 +32,7 @@ std = [
 	"futures",
 	"log",
 	"serde",
+	"sp-core/std",
 	"sp-api/std",
 	"sp-blockchain",
 	"sp-runtime/std",

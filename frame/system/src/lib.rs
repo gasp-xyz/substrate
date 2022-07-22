@@ -580,6 +580,10 @@ pub mod pallet {
 	#[pallet::getter(fn block_seed)]
 	pub type BlockSeed<T: Config> = StorageValue<_, sp_core::H256, ValueQuery>;
 
+	/// Map of block numbers to block hashes.
+	#[pallet::storage]
+	pub type TxQueue<T: Config> = StorageValue<_, Vec<(Vec<u8>, Vec<u8>)>, ValueQuery>;
+
 	/// Extrinsics data for the current block (maps an extrinsic's index to its data).
 	#[pallet::storage]
 	#[pallet::getter(fn extrinsic_data)]

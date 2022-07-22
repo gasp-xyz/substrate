@@ -399,6 +399,7 @@ where
 	Origin: From<Option<u64>>,
 {
 	type Call = Call;
+	// type CallContext = Extra::Pre;
 
 	/// Checks to see if this is a valid *transaction*. It returns information on it if so.
 	fn validate<U: ValidateUnsigned<Call = Self::Call>>(

@@ -435,8 +435,8 @@ where
 
 
 			// any initial checks
-			Self::ver_checks(&block, public);
-			<frame_system::Pallet<System>>::set_block_seed(&block.header().seed().seed);
+			// Self::ver_checks(&block, public);
+			// <frame_system::Pallet<System>>::set_block_seed(&block.header().seed().seed);
 			Self::initial_checks(&block);
 
 			let signature_batching = sp_runtime::SignatureBatching::start();

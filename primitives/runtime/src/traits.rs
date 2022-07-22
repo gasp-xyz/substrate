@@ -1126,6 +1126,24 @@ pub trait Applyable: Sized + Send + Sync {
 		info: &DispatchInfoOf<Self::Call>,
 		len: usize,
 	) -> TransactionValidity;
+	//
+	// fn queue_push<V: ValidateUnsigned<Call = Self::Call>>(
+	// 	self,
+	// 	info: &DispatchInfoOf<Self::Call>,
+	// 	len: usize,
+	// ) -> Result<Self::CallContext, ()> {
+	// 	Err(())
+	// }
+	//
+	// /// temp default impl
+	// fn queue_pop<V: ValidateUnsigned<Call = Self::Call>>(
+	// 	self,
+	// 	_pre: Self::CallContext,
+	// 	info: &DispatchInfoOf<Self::Call>,
+	// 	len: usize,
+	// ) -> crate::ApplyExtrinsicResultWithInfo<PostDispatchInfoOf<Self::Call>> {
+	// 	self.apply::<V>(info, len)
+	// }
 
 	/// Executes all necessary logic needed prior to dispatch and deconstructs into function call,
 	/// index and sender.

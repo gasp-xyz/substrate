@@ -434,104 +434,114 @@ where
 			},
 		};
 
-		let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit) / 2;
+		// let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit) / 2;
 
 		debug!(target: "block_builder", "Attempting to push transactions from the pool.");
 		debug!(target: "block_builder", "Pool status: {:?}", self.transaction_pool.status());
 		let mut transaction_pushed = false;
 		let mut hit_block_size_limit = false;
 
-		let mut block_size = block_builder
-			.estimate_block_size_without_extrinsics(self.include_proof_in_block_size_estimation);
-
 		// after previous block is applied it is possible to prevalidate incomming transaction
 		// but eventually changess needs to be rolled back, as those can be executed
 		// only in the following(future) block
-		let (block, storage_changes, proof) = block_builder.build_with_seed(
-			seed,
-			|at,api| {
-            let mut valid_txs = Vec::new();
+		let mut pending_iterator = select! {
+			res = t1 => res,
+			_ = t2 => {
+				log::warn!(
+					"Timeout fired waiting for transaction pool at block #{}. \
+					Proceeding with production.",
+					self.parent_number,
+				);
+				self.transaction_pool.ready()
+			},
+		};
 
-			while let Some(pending_tx) = pending_iterator.next() {
-				let now = (self.now)();
-				if now > deadline {
-					debug!(target: "block_builder",
-						"Consensus deadline reached when pushing block transactions, \
-						proceeding with proposing."
+		let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
+
+		debug!("Attempting to push transactions from the pool.");
+		debug!("Pool status: {:?}", self.transaction_pool.status());
+		let mut transaction_pushed = false;
+		let mut hit_block_size_limit = false;
+
+		while let Some(pending_tx) = pending_iterator.next() {
+			let now = (self.now)();
+			if now > deadline {
+				debug!(
+					"Consensus deadline reached when pushing block transactions, \
+					proceeding with proposing."
+				);
+				break
+			}
+
+			let pending_tx_data = pending_tx.data().clone();
+			let pending_tx_hash = pending_tx.hash().clone();
+
+			let block_size = block_builder.estimate_block_size_without_extrinsics(
+				self.include_proof_in_block_size_estimation,
+			);
+			if block_size + pending_tx_data.encoded_size() > block_size_limit {
+				pending_iterator.report_invalid(&pending_tx);
+				if skipped < MAX_SKIPPED_TRANSACTIONS {
+					skipped += 1;
+					debug!(
+						"Transaction would overflow the block size limit, \
+						 but will try {} more transactions before quitting.",
+						MAX_SKIPPED_TRANSACTIONS - skipped,
 					);
+					continue
+				} else if now < soft_deadline {
+					debug!(
+						"Transaction would overflow the block size limit, \
+						 but we still have time before the soft deadline, so \
+						 we will try a bit more."
+					);
+					continue
+				} else {
+					debug!("Reached block size limit, proceeding with proposing.");
+					hit_block_size_limit = true;
 					break
 				}
+			}
 
-				let pending_tx_data = pending_tx.data().clone();
-				let pending_tx_hash = pending_tx.hash().clone();
-
-				block_size += pending_tx_data.encoded_size();
-				if block_size > block_size_limit {
+			trace!("[{:?}] Pushing to the block.", pending_tx_hash);
+			match sc_block_builder::BlockBuilder::push(&mut block_builder, pending_tx_data) {
+				Ok(()) => {
+					transaction_pushed = true;
+					debug!("[{:?}] Pushed to the block.", pending_tx_hash);
+				},
+				Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
 					pending_iterator.report_invalid(&pending_tx);
 					if skipped < MAX_SKIPPED_TRANSACTIONS {
 						skipped += 1;
-						debug!(target: "block_builder",
-							"Transaction would overflow the block size limit, \
-							 but will try {} more transactions before quitting.",
+						debug!(
+							"Block seems full, but will try {} more transactions before quitting.",
 							MAX_SKIPPED_TRANSACTIONS - skipped,
 						);
-						continue
-					} else if now < soft_deadline {
-						debug!(target: "block_builder",
-							"Transaction would overflow the block size limit, \
-							 but we still have time before the soft deadline, so \
-							 we will try a bit more."
+					} else if (self.now)() < soft_deadline {
+						debug!(
+							"Block seems full, but we still have time before the soft deadline, \
+							 so we will try a bit more before quitting."
 						);
-						continue
 					} else {
-						debug!(target: "block_builder","Reached block size limit, proceeding with proposing.");
-						hit_block_size_limit = true;
+						debug!("Block is full, proceed with proposing.");
 						break
 					}
-				}
-
-				trace!(target:"block_builder", "[{:?}] Pushing to the block.", pending_tx_hash);
-				match validate_transaction::<Block, C>(at, &api, pending_tx_data.clone()) {
-					Ok(()) => {
-						transaction_pushed = true;
-						valid_txs.push(pending_tx_data);
-						debug!("[{:?}] Pushed to the block.", pending_tx_hash);
-					},
-					Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
-						pending_iterator.report_invalid(&pending_tx);
-						if skipped < MAX_SKIPPED_TRANSACTIONS {
-							skipped += 1;
-							debug!(target: "block_builder",
-								"Block seems full, but will try {} more transactions before quitting.",
-								MAX_SKIPPED_TRANSACTIONS - skipped,
-							);
-						} else if (self.now)() < soft_deadline {
-							debug!(target: "block_builder",
-								"Block seems full, but we still have time before the soft deadline, \
-								 so we will try a bit more before quitting."
-							);
-						} else {
-							debug!(target: "block_builder","Block is full, proceed with proposing.");
-							break
-						}
-					},
-					Err(e) if skipped > 0 => {
-						pending_iterator.report_invalid(&pending_tx);
-						trace!(target: "block_builder",
-							"[{:?}] Ignoring invalid transaction when skipping: {}",
-							pending_tx_hash,
-							e
-						);
-					},
-					Err(e) => {
-						pending_iterator.report_invalid(&pending_tx);
-						debug!(target: "block_builder","[{:?}] Invalid transaction: {}", pending_tx_hash, e);
-						unqueue_invalid.push(pending_tx_hash);
-					},
-				}
+				},
+				Err(e) if skipped > 0 => {
+					pending_iterator.report_invalid(&pending_tx);
+					trace!(
+						"[{:?}] Ignoring invalid transaction when skipping: {}",
+						pending_tx_hash,
+						e
+					);
+				},
+				Err(e) => {
+					pending_iterator.report_invalid(&pending_tx);
+					debug!("[{:?}] Invalid transaction: {}", pending_tx_hash, e);
+					unqueue_invalid.push(pending_tx_hash);
+				},
 			}
-            valid_txs
-		})?.into_inner();
+		}
 
 		if hit_block_size_limit && !transaction_pushed {
 			warn!(
@@ -541,6 +551,8 @@ where
 		}
 
 		self.transaction_pool.remove_invalid(&unqueue_invalid);
+
+		let (block, storage_changes, proof) = block_builder.build()?.into_inner();
 
 		debug!(target: "block_builder","created block {:?}", block);
 

@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use sp_runtime::{traits::Block as BlockT, AccountId32};
+use sp_runtime::{traits::Block as BlockT, AccountId32, ApplyExtrinsicResult};
 
 /// Information about extrinsic fetched from runtime API
 #[derive(Encode, Decode, PartialEq)]
@@ -13,7 +13,8 @@ pub struct ExtrinsicInfo {
 sp_api::decl_runtime_apis! {
 	/// The `VerApi` api trait for fetching information about extrinsic author and
 	/// nonce
-	pub trait VerApi {
+	pub trait VerApi
+	{
 		// TODO: make AccountId generic
 		/// Provides information about extrinsic signer and nonce
 		fn get_signer(tx: <Block as BlockT>::Extrinsic) -> Option<(AccountId32, u32)>;
@@ -23,5 +24,10 @@ sp_api::decl_runtime_apis! {
 
 		/// Checks if given block will start new session
 		fn store_seed(seed: sp_core::H256);
+
+		fn enqueue_tx(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult;
+
+		fn exec_enqueued_tx() -> Option<<Block as BlockT>::Extrinsic>;
+
 	}
 }
