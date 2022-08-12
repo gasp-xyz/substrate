@@ -1270,6 +1270,22 @@ impl<T: Config> Pallet<T> {
 		<BlockSeed<T>>::put(seed);
 	}
 
+	// TODO: for poc purposes only
+	pub fn store_txs(txs: Vec<Vec<u8>>) {
+		if !txs.is_empty() {
+			let prev_txs = <StorageQueue<T>>::take();
+			if !prev_txs.is_empty() {
+				panic!("you cannot include txs while previous block has not been consumed");
+			}
+			<StorageQueue<T>>::put(txs);
+		}
+	}
+
+	// TODO: for poc purposes only
+	pub fn pop_txs() -> Vec<Vec<u8>> {
+		<StorageQueue<T>>::take()
+	}
+
 	/// Start the execution of a particular block.
 	pub fn initialize(number: &T::BlockNumber, parent_hash: &T::Hash, digest: &generic::Digest) {
 		// populate environment

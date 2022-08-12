@@ -117,7 +117,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use crate::traits::AtLeast32BitUnsigned;
-use codec::{Codec, Encode};
+use codec::{Codec, Decode, Encode};
 use frame_support::{
 	dispatch::PostDispatchInfo,
 	traits::{
@@ -382,9 +382,9 @@ where
 		// Check that `parent_hash` is correct.
 		let n = header.number().clone();
 		assert!(
-			n > System::BlockNumber::zero()
-				&& <frame_system::Pallet<System>>::block_hash(n - System::BlockNumber::one())
-					== *header.parent_hash(),
+			n > System::BlockNumber::zero() &&
+				<frame_system::Pallet<System>>::block_hash(n - System::BlockNumber::one()) ==
+					*header.parent_hash(),
 			"Parent hash should be valid.",
 		);
 
@@ -447,7 +447,9 @@ where
 			assert!(extrinsics.len() >= count);
 
 			let curr_block_txs = extrinsics.iter().take(count);
-			let prev_block_txs = extrinsics.iter().skip(count);
+			let prev_block_txs = <frame_system::Pallet<System>>::pop_txs()
+				.into_iter()
+				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
 
 			// verify that all extrinsics can be executed in single block
 			let max = System::BlockWeights::get();
@@ -458,10 +460,10 @@ where
 					.expect("sum of extrinsics should fit into single block");
 			}
 
-			let curr_block_inherents = curr_block_txs.clone().filter(|e| !e.is_signed().unwrap());
+			let curr_block_inherents = curr_block_txs.clone().filter(|e| !e.is_signed().unwrap()); //.collect::<Vec<_>>();
+			let curr_block_extrinsics = curr_block_txs.clone().filter(|e| e.is_signed().unwrap());
 
-			let prev_block_extrinsics = prev_block_txs.filter(|e| e.is_signed().unwrap());
-			let tx_to_be_executed = curr_block_inherents.chain(prev_block_extrinsics).cloned().collect::<Vec<_>>();
+			let tx_to_be_executed = curr_block_inherents.chain(prev_block_txs.iter()).cloned().collect::<Vec<_>>();
 
 			let extrinsics_with_author: Vec<(_,_)> = tx_to_be_executed.into_iter().map(|e|
 					(
@@ -477,6 +479,7 @@ where
 				panic!("Signature verification failed.");
 			}
 
+			<frame_system::Pallet<System>>::store_txs(curr_block_extrinsics.map(|e| e.encode()).collect());
 			// any final checks
 			Self::final_checks(&header);
 		}
@@ -986,8 +989,8 @@ mod tests {
 			.assimilate_storage(&mut t)
 			.unwrap();
 		let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
-		let weight = xt.get_dispatch_info().weight
-			+ <Runtime as frame_system::Config>::BlockWeights::get()
+		let weight = xt.get_dispatch_info().weight +
+			<Runtime as frame_system::Config>::BlockWeights::get()
 				.get(DispatchClass::Normal)
 				.base_extrinsic;
 		let fee: Balance =
@@ -1207,8 +1210,8 @@ mod tests {
 			assert!(Executive::apply_extrinsic(x2.clone()).unwrap().is_ok());
 
 			// default weight for `TestXt` == encoded length.
-			let extrinsic_weight = len as Weight
-				+ <Runtime as frame_system::Config>::BlockWeights::get()
+			let extrinsic_weight = len as Weight +
+				<Runtime as frame_system::Config>::BlockWeights::get()
 					.get(DispatchClass::Normal)
 					.base_extrinsic;
 			assert_eq!(
@@ -1279,8 +1282,8 @@ mod tests {
 					Call::System(SystemCall::remark { remark: vec![1u8] }),
 					sign_extra(1, 0, 0),
 				);
-				let weight = xt.get_dispatch_info().weight
-					+ <Runtime as frame_system::Config>::BlockWeights::get()
+				let weight = xt.get_dispatch_info().weight +
+					<Runtime as frame_system::Config>::BlockWeights::get()
 						.get(DispatchClass::Normal)
 						.base_extrinsic;
 				let fee: Balance =
@@ -1527,10 +1530,9 @@ mod tests {
 			// Weights are recorded correctly
 			assert_eq!(
 				frame_system::Pallet::<Runtime>::block_weight().total(),
-				custom_runtime_upgrade_weight
-					+ runtime_upgrade_weight
-					+ on_initialize_weight
-					+ base_block_weight,
+				custom_runtime_upgrade_weight +
+					runtime_upgrade_weight +
+					on_initialize_weight + base_block_weight,
 			);
 		});
 	}

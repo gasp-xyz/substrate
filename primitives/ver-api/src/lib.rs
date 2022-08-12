@@ -2,6 +2,7 @@
 
 use codec::{Decode, Encode};
 use sp_runtime::{traits::Block as BlockT, AccountId32};
+use sp_std::vec::Vec;
 
 /// Information about extrinsic fetched from runtime API
 #[derive(Encode, Decode, PartialEq)]
@@ -23,5 +24,10 @@ sp_api::decl_runtime_apis! {
 
 		/// Checks if given block will start new session
 		fn store_seed(seed: sp_core::H256);
+
+		/// Checks if given block will start new session
+		fn store_txs(seed: Vec<Vec<u8>>);
+
+		fn pop_txs() -> Vec<Vec<u8>>;
 	}
 }

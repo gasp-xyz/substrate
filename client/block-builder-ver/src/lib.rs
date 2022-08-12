@@ -26,7 +26,7 @@
 
 #![warn(missing_docs)]
 
-use codec::Encode;
+use codec::{Decode, Encode};
 
 use sp_api::{
 	ApiExt, ApiRef, Core, ProvideRuntimeApi, StorageChanges, StorageProof, TransactionOutcome,
@@ -37,7 +37,7 @@ use sp_runtime::{
 	generic::BlockId,
 	legacy,
 	traits::{BlakeTwo256, Block as BlockT, Hash, HashFor, Header as HeaderT, NumberFor, One},
-	Digest, SaturatedConversion,
+	Digest,
 };
 
 pub use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -264,6 +264,10 @@ where
 			}
 		});
 
+		self.api
+			.store_txs(&self.block_id, valid_txs.iter().map(|tx| tx.encode()).collect())
+			.unwrap();
+		// TODO get rid of collect
 		let mut next_header = self
 			.api
 			.finalize_block_with_context(&self.block_id, ExecutionContext::BlockConstruction)?;
@@ -340,25 +344,26 @@ where
 		let block_id = &self.block_id;
 		self.api.store_seed(&block_id, seed.seed).unwrap();
 
-		let previous_block_header =
-			self.backend.blockchain().header(BlockId::Hash(parent_hash)).unwrap().unwrap();
+		// let previous_block_header =
+		// 	self.backend.blockchain().header(BlockId::Hash(parent_hash)).unwrap().unwrap();
 
 		let previous_block_extrinsics = self
-			.backend
-			.blockchain()
-			.body(BlockId::Hash(parent_hash))
-			.unwrap()
-			.unwrap_or_default();
+			.api
+			.pop_txs(&block_id)
+			.unwrap() // TODO get rid of unwrap
+			.into_iter()
+			.map(|tx| <Block as BlockT>::Extrinsic::decode(&mut tx.as_slice()).unwrap());
 
-		let prev_block_extrinsics_count =
-			previous_block_header.count().clone().saturated_into::<usize>();
-		log::debug!(target: "block_builder", "previous block has {} transactions, {} comming from that block", previous_block_extrinsics.len(), prev_block_extrinsics_count);
-
-		let previous_block_extrinsics = previous_block_extrinsics
-			.iter()
-			.take(prev_block_extrinsics_count)
-			.cloned()
-			.collect::<Vec<_>>();
+		// let prev_block_extrinsics_count =
+		// 	previous_block_header.count().clone().saturated_into::<usize>();
+		// log::debug!(target: "block_builder", "previous block has {} transactions, {} comming from
+		// that block", previous_block_extrinsics.len(), prev_block_extrinsics_count);
+		//
+		// let previous_block_extrinsics = previous_block_extrinsics
+		// 	.iter()
+		// 	.take(prev_block_extrinsics_count)
+		// 	.cloned()
+		// 	.collect::<Vec<_>>();
 
 		// filter out extrinsics only
 		let extrinsics = previous_block_extrinsics
