@@ -342,6 +342,7 @@ async fn system_network_reserved_peers() {
 }
 
 #[test]
+#[ignore]
 fn test_add_reset_log_filter() {
 	const EXPECTED_BEFORE_ADD: &'static str = "EXPECTED_BEFORE_ADD";
 	const EXPECTED_AFTER_ADD: &'static str = "EXPECTED_AFTER_ADD";

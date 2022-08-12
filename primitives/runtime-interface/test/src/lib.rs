@@ -175,6 +175,7 @@ fn test_versionining_register_only() {
 }
 
 #[test]
+#[ignore]
 fn test_tracing() {
 	use std::fmt;
 	use tracing::span::Id as SpanId;
