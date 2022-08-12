@@ -234,16 +234,12 @@ where
 		seed: ShufflingSeed,
 		call: F,
 	) -> Result<BuiltBlock<Block, backend::StateBackendFor<B, Block>>, Error> {
-		let mut next_header = self
-			.api
-			.finalize_block_with_context(&self.block_id, ExecutionContext::BlockConstruction)?;
-
-		let proof = self.api.extract_proof();
-
-		let state = self.backend.state_at(self.block_id)?;
-		let parent_hash = self.parent_hash;
+		let block_id = self.block_id;
 
 		let valid_txs = self.api.execute_in_transaction(|api| {
+			let next_header = api
+				.finalize_block_with_context(&block_id, ExecutionContext::BlockConstruction)
+				.unwrap();
 			// create dummy header just to condider N+1 block extrinsics like new session
 			let header = <<Block as BlockT>::Header as HeaderT>::new(
 				*next_header.number() + One::one(),
@@ -268,6 +264,14 @@ where
 			}
 		});
 
+		let mut next_header = self
+			.api
+			.finalize_block_with_context(&self.block_id, ExecutionContext::BlockConstruction)?;
+
+		let proof = self.api.extract_proof();
+
+		let state = self.backend.state_at(self.block_id)?;
+		let parent_hash = self.parent_hash;
 		let storage_changes = self
 			.api
 			.into_storage_changes(&state, parent_hash)
