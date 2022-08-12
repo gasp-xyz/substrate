@@ -567,7 +567,7 @@ pub mod pallet {
 	pub type BlockHash<T: Config> =
 		StorageMap<_, Twox64Concat, T::BlockNumber, T::Hash, ValueQuery>;
 
-	/// Map of block numbers to block hashes.
+	/// Map of block numbers to block shuffling seeds
 	#[pallet::storage]
 	#[pallet::getter(fn block_seed)]
 	pub type BlockSeed<T: Config> = StorageValue<_, sp_core::H256, ValueQuery>;
