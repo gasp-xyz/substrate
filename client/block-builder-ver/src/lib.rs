@@ -270,7 +270,7 @@ where
 			)
 			.unwrap();
 
-		self.extrinsics.push(store_txs_inherent.clone());
+		self.inherents.push(store_txs_inherent.clone());
 
 		apply_transaction_wrapper::<Block, A>(
 			&self.api,
@@ -295,11 +295,10 @@ where
 			.map_err(sp_blockchain::Error::StorageChanges)?;
 
 		log::debug!(target: "block_builder", "consume {} valid transactios", valid_txs.len());
-		self.extrinsics.extend(valid_txs);
 
 		// store hash of all extrinsics include in given bloack
 		//
-		let curr_block_extrinsics_count = self.extrinsics.len() + self.inherents.len();
+		let curr_block_extrinsics_count = self.inherents.len() + self.extrinsics.len();
 		let all_extrinsics: Vec<_> =
 			self.inherents.iter().chain(self.extrinsics.iter()).cloned().collect();
 
@@ -386,21 +385,23 @@ where
 			})
 			.collect::<Vec<_>>();
 
+		let shuffled_extrinsics = extrinsic_shuffler::shuffle::<Block, A>(
+			&self.api,
+			&self.block_id,
+			extrinsics,
+			&seed.seed,
+		);
+
+		self.extrinsics = shuffled_extrinsics.clone();
+
 		let to_be_executed = self
 			.inherents
 			.clone()
 			.into_iter()
-			.chain(extrinsics.into_iter())
+			.chain(shuffled_extrinsics.clone().into_iter())
 			.collect::<Vec<_>>();
 
-		let shuffled_extrinsics = extrinsic_shuffler::shuffle::<Block, A>(
-			&self.api,
-			&self.block_id,
-			to_be_executed,
-			&seed.seed,
-		);
-
-		for xt in shuffled_extrinsics.iter() {
+		for xt in to_be_executed.iter() {
 			log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
 			self.api.execute_in_transaction(|api| {
 				match apply_transaction_wrapper::<Block, A>(

@@ -441,24 +441,24 @@ where
 
 			let signature_batching = sp_runtime::SignatureBatching::start();
 
-			let (header, extrinsics) = block.deconstruct();
-			let count: usize = header.count().clone().saturated_into::<usize>();
+			let (header, curr_block_txs) = block.deconstruct();
+			// let count: usize = header.count().clone().saturated_into::<usize>();
+			//
+			// assert!(extrinsics.len() >= count);
 
-			assert!(extrinsics.len() >= count);
-
-			let curr_block_txs = extrinsics.iter().take(count);
+			// let curr_block_txs = extrinsics.iter().take(count);
 			let prev_block_txs = <frame_system::Pallet<System>>::pop_txs()
 				.into_iter()
 				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
 
-			// verify that all extrinsics can be executed in single block
-			let max = System::BlockWeights::get();
-			let mut all: frame_system::ConsumedWeight = Default::default();
-			for tx in curr_block_txs.clone() {
-				let info = tx.clone().get_dispatch_info();
-				all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
-					.expect("sum of extrinsics should fit into single block");
-			}
+			// TODO: !!! implement proper mechanism !!!
+			// let max = System::BlockWeights::get();
+			// let mut all: frame_system::ConsumedWeight = Default::default();
+			// for tx in curr_block_txs.clone() {
+			// 	let info = tx.clone().get_dispatch_info();
+			// 	all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
+			// 		.expect("sum of extrinsics should fit into single block");
+			// }
 
 
 
@@ -470,9 +470,13 @@ where
 			).collect();
 			let shuffled_extrinsics = extrinsic_shuffler::shuffle_using_seed(extrinsics_with_author, &header.seed().seed);
 
-			let curr_block_inherents = curr_block_txs.clone().filter(|e| !e.is_signed().unwrap()); //.collect::<Vec<_>>();
+
+			let curr_block_inherents = curr_block_txs.iter().filter(|e| !e.is_signed().unwrap()); //.collect::<Vec<_>>();
 			let curr_block_inherents_len = curr_block_inherents.clone().count();
-			let curr_block_extrinsics = curr_block_txs.clone().filter(|e| e.is_signed().unwrap());
+			let curr_block_extrinsics = curr_block_txs.iter().filter(|e| e.is_signed().unwrap());
+
+			// verify that txs in block matches shuffled on our own);
+			assert_eq!(shuffled_extrinsics, curr_block_extrinsics.cloned().collect::<Vec<_>>());
 
 			let tx_to_be_executed = curr_block_inherents.clone()
 				.take(curr_block_inherents_len-1)
@@ -486,8 +490,8 @@ where
 				panic!("Signature verification failed.");
 			}
 
-			// <frame_system::Pallet<System>>::store_txs(curr_block_extrinsics.map(|e| e.encode()).collect());
-			// any final checks
+			//  <frame_system::Pallet<System>>::store_txs(curr_block_extrinsics.map(|e| e.encode()).collect());
+			//  any final checks
 			Self::final_checks(&header);
 		}
 	}
