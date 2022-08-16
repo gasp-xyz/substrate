@@ -388,9 +388,10 @@ where
 			"Parent hash should be valid.",
 		);
 
-		if let Err(i) = System::ensure_inherents_are_first(block) {
-			panic!("Invalid inherent position for extrinsic at index {}", i);
-		}
+		// TODO: maybe just exclude last tx from check !
+		// if let Err(i) = System::ensure_inherents_are_first(block) {
+		// 	panic!("Invalid inherent position for extrinsic at index {}", i);
+		// }
 
 		// Check that transaction trie root represents the transactions.
 		let xts_root = frame_system::extrinsics_root::<System::Hashing, _>(&block.extrinsics());

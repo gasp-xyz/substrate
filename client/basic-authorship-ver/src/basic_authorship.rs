@@ -498,7 +498,7 @@ where
 						Ok(()) => {
 							transaction_pushed = true;
 							valid_txs.push(pending_tx_data);
-							debug!("[{:?}] Pushed to the block.", pending_tx_hash);
+							debug!(target: "block_builder", "[{:?}] Pushed to the block.", pending_tx_hash);
 						},
 						Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
 							pending_iterator.report_invalid(&pending_tx);

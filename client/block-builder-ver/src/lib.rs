@@ -270,7 +270,7 @@ where
 			)
 			.unwrap();
 
-		self.inherents.push(store_txs_inherent.clone());
+		self.extrinsics.push(store_txs_inherent.clone());
 
 		apply_transaction_wrapper::<Block, A>(
 			&self.api,
