@@ -460,12 +460,9 @@ where
 					.expect("sum of extrinsics should fit into single block");
 			}
 
-			let curr_block_inherents = curr_block_txs.clone().filter(|e| !e.is_signed().unwrap()); //.collect::<Vec<_>>();
-			let curr_block_extrinsics = curr_block_txs.clone().filter(|e| e.is_signed().unwrap());
 
-			let tx_to_be_executed = curr_block_inherents.chain(prev_block_txs.iter()).cloned().collect::<Vec<_>>();
 
-			let extrinsics_with_author: Vec<(_,_)> = tx_to_be_executed.into_iter().map(|e|
+			let extrinsics_with_author: Vec<(_,_)> = prev_block_txs.into_iter().map(|e|
 					(
 						// its safe to panic here
 						(e.get_account_id(&Default::default()).unwrap(), e)
@@ -473,13 +470,23 @@ where
 			).collect();
 			let shuffled_extrinsics = extrinsic_shuffler::shuffle_using_seed(extrinsics_with_author, &header.seed().seed);
 
-			Self::execute_extrinsics_impl(shuffled_extrinsics, *header.number());
+			let curr_block_inherents = curr_block_txs.clone().filter(|e| !e.is_signed().unwrap()); //.collect::<Vec<_>>();
+			let curr_block_inherents_len = curr_block_inherents.clone().count();
+			let curr_block_extrinsics = curr_block_txs.clone().filter(|e| e.is_signed().unwrap());
+
+			let tx_to_be_executed = curr_block_inherents.clone()
+				.take(curr_block_inherents_len-1)
+				.chain(shuffled_extrinsics.iter())
+				.chain(curr_block_inherents.skip(curr_block_inherents_len-1))
+				.cloned().collect::<Vec<_>>();
+
+			Self::execute_extrinsics_impl(tx_to_be_executed, *header.number());
 
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
 			}
 
-			<frame_system::Pallet<System>>::store_txs(curr_block_extrinsics.map(|e| e.encode()).collect());
+			// <frame_system::Pallet<System>>::store_txs(curr_block_extrinsics.map(|e| e.encode()).collect());
 			// any final checks
 			Self::final_checks(&header);
 		}

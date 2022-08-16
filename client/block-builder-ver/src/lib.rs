@@ -262,9 +262,24 @@ where
 			}
 		});
 
-		self.api
-			.store_txs(&self.block_id, valid_txs.iter().map(|tx| tx.encode()).collect())
+		let store_txs_inherent = self
+			.api
+			.create_enqueue_txs_inherent(
+				&self.block_id,
+				valid_txs.iter().map(|tx| tx.encode()).collect(),
+			)
 			.unwrap();
+
+		self.extrinsics.push(store_txs_inherent.clone());
+
+		apply_transaction_wrapper::<Block, A>(
+			&self.api,
+			&self.block_id,
+			store_txs_inherent,
+			ExecutionContext::BlockConstruction,
+		)
+		.unwrap();
+
 		// TODO get rid of collect
 		let mut next_header = self
 			.api
