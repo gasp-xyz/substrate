@@ -169,7 +169,6 @@ pub struct BlockBuilder<'a, Block: BlockT, A: ProvideRuntimeApi<Block>, B> {
 	block_id: BlockId<Block>,
 	parent_hash: Block::Hash,
 	backend: &'a B,
-	previous_block_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
 	/// The estimated size of the block header.
 	estimated_header_size: usize,
 }
@@ -223,7 +222,6 @@ where
 			api,
 			block_id,
 			backend,
-			previous_block_extrinsics: None,
 			estimated_header_size,
 		})
 	}
@@ -287,13 +285,8 @@ where
 		// store hash of all extrinsics include in given bloack
 		//
 		let curr_block_extrinsics_count = self.extrinsics.len() + self.inherents.len();
-		let all_extrinsics: Vec<_> = self
-			.inherents
-			.iter()
-			.chain(self.extrinsics.iter())
-			.chain(self.previous_block_extrinsics.unwrap().iter())
-			.cloned()
-			.collect();
+		let all_extrinsics: Vec<_> =
+			self.inherents.iter().chain(self.extrinsics.iter()).cloned().collect();
 
 		let extrinsics_root = HashFor::<Block>::ordered_trie_root(
 			all_extrinsics.iter().map(Encode::encode).collect(),
@@ -378,7 +371,6 @@ where
 			})
 			.collect::<Vec<_>>();
 
-		self.previous_block_extrinsics = Some(extrinsics.clone());
 		let to_be_executed = self
 			.inherents
 			.clone()

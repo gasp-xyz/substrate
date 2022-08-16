@@ -29,5 +29,7 @@ sp_api::decl_runtime_apis! {
 		fn store_txs(seed: Vec<Vec<u8>>);
 
 		fn pop_txs() -> Vec<Vec<u8>>;
+
+		fn create_enqueue_txs_inherent(txs: Vec<Vec<u8>>) -> Block::Extrinsic;
 	}
 }

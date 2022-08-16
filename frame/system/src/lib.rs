@@ -381,6 +381,18 @@ pub mod pallet {
 		/// # <weight>
 		/// - `O(1)`
 		/// # </weight>
+		#[pallet::weight(100)]
+		pub fn enqueue_txs(origin: OriginFor<T>, txs: Vec<Vec<u8>>) -> DispatchResultWithPostInfo {
+			ensure_none(origin)?;
+			Self::store_txs(txs);
+			Ok(().into())
+		}
+
+		/// Make some on-chain remark.
+		///
+		/// # <weight>
+		/// - `O(1)`
+		/// # </weight>
 		#[pallet::weight(T::SystemWeightInfo::remark(_remark.len() as u32))]
 		pub fn remark(origin: OriginFor<T>, _remark: Vec<u8>) -> DispatchResultWithPostInfo {
 			ensure_signed_or_root(origin)?;
