@@ -384,6 +384,8 @@ pub mod pallet {
 		#[pallet::weight(100)]
 		pub fn enqueue_txs(origin: OriginFor<T>, txs: Vec<Vec<u8>>) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
+			let hashes = txs.iter().map(|tx| T::Hashing::hash(&tx[..])).collect::<Vec<_>>();
+			Self::deposit_log(generic::DigestItem::Other(hashes.encode()));
 			Self::store_txs(txs);
 			Ok(().into())
 		}
