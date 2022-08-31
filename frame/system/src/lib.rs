@@ -151,6 +151,14 @@ pub type ConsumedWeight = PerDispatchClass<Weight>;
 
 pub use pallet::*;
 
+pub type EncodedTx = Vec<u8>;
+
+#[derive(Debug, codec::Encode, codec::Decode, TypeInfo, Eq, PartialEq, Clone)]
+pub struct EnqueuedTx {
+	data: EncodedTx,
+	who: sp_core::H256,
+}
+
 /// Do something when we should be setting the code.
 pub trait SetCode<T: Config> {
 	/// Set the code to the given blob.
@@ -382,9 +390,12 @@ pub mod pallet {
 		/// - `O(1)`
 		/// # </weight>
 		#[pallet::weight(100)]
-		pub fn enqueue_txs(origin: OriginFor<T>, txs: Vec<Vec<u8>>) -> DispatchResultWithPostInfo {
+		pub fn enqueue_txs(
+			origin: OriginFor<T>,
+			txs: Vec<EnqueuedTx>,
+		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
-			let hashes = txs.iter().map(|tx| T::Hashing::hash(&tx[..])).collect::<Vec<_>>();
+			let hashes = txs.iter().map(|tx| T::Hashing::hash(&tx.data[..])).collect::<Vec<_>>();
 			Self::deposit_log(generic::DigestItem::Other(hashes.encode()));
 			Self::store_txs(txs);
 			Ok(().into())
@@ -587,8 +598,10 @@ pub mod pallet {
 	pub type BlockSeed<T: Config> = StorageValue<_, sp_core::H256, ValueQuery>;
 
 	/// Map of block numbers to block shuffling seeds
+	//TODO should use bounded vec
 	#[pallet::storage]
-	pub type StorageQueue<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
+	pub type StorageQueue<T: Config> =
+		StorageValue<_, Vec<(T::BlockNumber, Option<u32>, Vec<EnqueuedTx>)>, ValueQuery>;
 
 	/// Extrinsics data for the current block (maps an extrinsic's index to its data).
 	#[pallet::storage]
@@ -1280,24 +1293,71 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
+	/// store seed and shuffle extrinsics from precedesing block
 	pub fn set_block_seed(seed: &sp_core::H256) {
+		// TODO check in on_finalize if seed has been set for every block
 		<BlockSeed<T>>::put(seed);
+		let mut queue = <StorageQueue<T>>::get();
+		let current_block = Self::block_number();
+		if let Some((nr, index, txs)) = queue.last_mut() {
+			if Self::block_number() == *nr + One::one() {
+				// index is only set when txs has been shuffled already
+				assert!(index.is_none());
+				let mut shuffled = extrinsic_shuffler::shuffle_using_seed(
+					txs.iter().map(|tx| (Some(tx.who), tx.data.clone())).collect::<Vec<_>>(),
+					seed,
+				)
+				.iter()
+				.map(|(who, data)| EnqueuedTx { who: who.clone().unwrap(), data: data.clone() })
+				.collect::<Vec<_>>();
+				let _ = sp_std::mem::replace(txs, shuffled);
+				let _ = sp_std::mem::replace(index, Some(0));
+			}
+		}
+		<StorageQueue<T>>::put(queue);
 	}
 
 	// TODO: for poc purposes only
-	pub fn store_txs(txs: Vec<Vec<u8>>) {
+	pub fn store_txs(txs: Vec<EnqueuedTx>) {
 		if !txs.is_empty() {
-			let prev_txs = <StorageQueue<T>>::take();
-			if !prev_txs.is_empty() {
-				panic!("you cannot include txs while previous block has not been consumed");
-			}
-			<StorageQueue<T>>::put(txs);
+			<StorageQueue<T>>::mutate(|queue| {
+				queue.push((Self::block_number(), None, txs));
+			});
 		}
 	}
 
 	// TODO: for poc purposes only
-	pub fn pop_txs() -> Vec<Vec<u8>> {
-		<StorageQueue<T>>::take()
+	pub fn pop_txs(mut len: usize) -> Vec<EncodedTx> {
+		let mut result: Vec<EnqueuedTx> = Vec::new();
+		let mut fully_executed_blockes = 0;
+		let mut queue = <StorageQueue<T>>::take();
+
+		for (i, (nr, mut index, txs)) in queue.iter_mut().enumerate() {
+			log::debug!( target: "runtime::system", "{} tx to be execute left", len);
+			if len == 0 {
+				log::debug!( target: "runtime::system", "all scheduled txs executed");
+				break
+			}
+
+			if let Some(id) = &mut index {
+				let count = sp_std::cmp::min(txs.len() - (*id) as usize, len) as usize;
+				let last_index = *id as usize + count;
+				*id += *id + 1;
+				if last_index == txs.len() {
+					fully_executed_blockes += 1;
+				}
+				result.extend_from_slice(&txs[*id as usize..last_index]);
+				len -= count;
+				log::debug!( target: "runtime::system", "fetched {} tx from block", nr);
+			} else {
+				log::debug!( target: "runtime::system", "unshuffled block found {}", nr);
+				break
+			}
+		}
+
+		queue.drain(0..fully_executed_blockes);
+		<StorageQueue<T>>::put(queue);
+		result.iter().map(|enqueued_tx| enqueued_tx.data.clone()).collect()
 	}
 
 	/// Start the execution of a particular block.

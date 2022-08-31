@@ -93,7 +93,7 @@ impl FisherYates {
 pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clone>(
 	extrinsics: Vec<(Option<A>, E)>,
 	seed: &H256,
-) -> Vec<E> {
+) -> Vec<(Option<A>, E)> {
 	log::debug!(target: "block_shuffler", "shuffling extrinsics with seed: {:2X?}", seed.as_bytes());
 	log::debug!(target: "block_shuffler", "origin order: [");
 	for (_, tx) in extrinsics.iter() {
@@ -110,12 +110,7 @@ pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clon
 	// let mut slots = Vec::with_capacity(extrinsics.len());
 
 	// initial slots - just inherents
-	let mut slots = extrinsics
-		.iter()
-		.filter(|tx| tx.0.is_none())
-		.map(|(_, tx)| tx)
-		.cloned()
-		.collect::<Vec<_>>();
+	let mut slots = extrinsics.iter().filter(|tx| tx.0.is_none()).cloned().collect::<Vec<(_, _)>>();
 	let only_extrinsics =
 		extrinsics.into_iter().filter(|tx| tx.0.is_some()).collect::<Vec<(_, _)>>();
 
@@ -131,9 +126,8 @@ pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clon
 		let keys = grouped_extrinsics.keys().cloned().collect::<Vec<_>>();
 		let from = slots.len();
 		for k in keys {
-			// TODO remove
 			let txs_from_account = grouped_extrinsics.get_mut(&k).unwrap();
-			slots.push(txs_from_account.pop_front().unwrap());
+			slots.push((k.clone(), txs_from_account.pop_front().unwrap()));
 			if txs_from_account.is_empty() {
 				grouped_extrinsics.remove(&k);
 			}
@@ -194,6 +188,10 @@ where
 		}).collect();
 
 	shuffle_using_seed(extrinsics, seed)
+		.iter()
+		.map(|(who, tx)| tx)
+		.cloned()
+		.collect()
 }
 
 #[derive(derive_more::Display, Debug)]
