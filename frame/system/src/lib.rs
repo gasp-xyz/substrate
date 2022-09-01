@@ -1325,10 +1325,17 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	// TODO: for poc purposes only
+	pub fn enqueued_txs(acc: sp_runtime::AccountId32) -> Vec<EncodedTx> {
+		let mut result: Vec<EnqueuedTx> = Vec::new();
+		let mut fully_executed_blocks = 0;
+		let mut queue = <StorageQueue<T>>::get();
+
+		queue.iter();
+	}
+
 	pub fn pop_txs(mut len: usize) -> Vec<EncodedTx> {
 		let mut result: Vec<EnqueuedTx> = Vec::new();
-		let mut fully_executed_blockes = 0;
+		let mut fully_executed_blocks = 0;
 		let mut queue = <StorageQueue<T>>::take();
 
 		for (i, (nr, mut index, txs)) in queue.iter_mut().enumerate() {
@@ -1343,7 +1350,7 @@ impl<T: Config> Pallet<T> {
 				let last_index = *id as usize + count;
 				*id += *id + 1;
 				if last_index == txs.len() {
-					fully_executed_blockes += 1;
+					fully_executed_blocks += 1;
 				}
 				result.extend_from_slice(&txs[*id as usize..last_index]);
 				len -= count;
@@ -1354,7 +1361,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		queue.drain(0..fully_executed_blockes);
+		queue.drain(0..fully_executed_blocks);
 		<StorageQueue<T>>::put(queue);
 		result.iter().map(|enqueued_tx| enqueued_tx.data.clone()).collect()
 	}
