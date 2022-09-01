@@ -71,7 +71,8 @@ use sp_runtime::{
 	traits::{
 		self, AtLeast32Bit, AtLeast32BitUnsigned, BadOrigin, BlockNumberProvider, Bounded,
 		CheckEqual, Dispatchable, Hash, Lookup, LookupError, MaybeDisplay, MaybeMallocSizeOf,
-		MaybeSerializeDeserialize, Member, One, Saturating, SimpleBitOps, StaticLookup, Zero,
+		MaybeSerializeDeserialize, Member, One, SaturatedConversion, Saturating, SimpleBitOps,
+		StaticLookup, Zero,
 	},
 	DispatchError, Perbill, RuntimeDebug,
 };
@@ -1298,7 +1299,7 @@ impl<T: Config> Pallet<T> {
 		// TODO check in on_finalize if seed has been set for every block
 		<BlockSeed<T>>::put(seed);
 		let mut queue = <StorageQueue<T>>::get();
-		let current_block = Self::block_number();
+		let current_block = Self::block_number().saturated_into::<u32>();
 		log::debug!( target: "runtime::system", "storing seed {} for block {}", seed, current_block);
 		if let Some((nr, index, txs)) = queue.last_mut() {
 			if Self::block_number() == *nr + One::one() {
@@ -1320,11 +1321,11 @@ impl<T: Config> Pallet<T> {
 
 	// TODO: for poc purposes only
 	pub fn store_txs(txs: Vec<EnqueuedTx>) {
-		let block_number = Self::block_number();
+		let block_number = Self::block_number().saturated_into::<u32>();
 		if !txs.is_empty() {
 			log::debug!( target: "runtime::system", "storing {} txs at block {}", block_number, txs.len() );
 			<StorageQueue<T>>::mutate(|queue| {
-				queue.push((block_number, None, txs));
+				queue.push((Self::block_number(), None, txs));
 			});
 		} else {
 			log::debug!( target: "runtime::system", "no txs to store at block {}", block_number);
