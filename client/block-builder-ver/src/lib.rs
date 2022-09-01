@@ -229,7 +229,12 @@ where
 	}
 
 	/// temporaily apply extrinsics and record them on the list
-	pub fn build_with_seed<F: FnOnce(&'_ BlockId<Block>, &'_ A::Api) -> Vec<Block::Extrinsic>>(
+	pub fn build_with_seed<
+		F: FnOnce(
+			&'_ BlockId<Block>,
+			&'_ A::Api,
+		) -> Vec<(Option<sp_runtime::AccountId32>, Block::Extrinsic)>,
+	>(
 		mut self,
 		seed: ShufflingSeed,
 		call: F,
@@ -268,7 +273,10 @@ where
 			.api
 			.create_enqueue_txs_inherent(
 				&self.block_id,
-				valid_txs.iter().map(|tx| tx.encode()).collect(),
+				valid_txs
+					.iter()
+					.map(|(who, tx)| sp_ver::EnqueuedTx { data: tx.encode(), who: who.clone() })
+					.collect(),
 			)
 			.unwrap();
 
@@ -446,11 +454,6 @@ where
 	Api::Api: VerApi<Block>,
 	Api::Api: BlockBuilderApi<Block>,
 {
-	match api.get_signer(at, xt.clone()).unwrap() {
-		Some((who, nonce)) => log::debug!(target: "block_builder",
-			"TX[{:?}] {:?} {} ", BlakeTwo256::hash_of(&xt), who, nonce),
-		_ => {},
-	};
 	api.execute_in_transaction(|api| {
 		match apply_transaction_wrapper::<Block, Api>(
 			api,

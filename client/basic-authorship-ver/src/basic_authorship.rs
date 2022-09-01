@@ -496,8 +496,9 @@ where
 					trace!(target:"block_builder", "[{:?}] Pushing to the block.", pending_tx_hash);
 					match validate_transaction::<Block, C>(at, &api, pending_tx_data.clone()) {
 						Ok(()) => {
+							let who = api.get_signer(at, xt.clone()).unwrap().map(|signer_info| signer_info.who.clone());
 							transaction_pushed = true;
-							valid_txs.push(pending_tx_data);
+							valid_txs.push((who, pending_tx_data));
 							debug!(target: "block_builder", "[{:?}] Pushed to the block.", pending_tx_hash);
 						},
 						Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {

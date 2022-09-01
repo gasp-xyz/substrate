@@ -23,7 +23,7 @@ pub type EncodedTx = Vec<u8>;
 #[derive(Debug, codec::Encode, codec::Decode, scale_info::TypeInfo, Eq, PartialEq, Clone)]
 pub struct EnqueuedTx {
 	pub data: EncodedTx,
-	pub who: sp_core::H256,
+	pub who: Option<sp_runtime::AccountId32>,
 }
 
 pub trait CompatibleDigestItemVer<B: BlockT>: Sized {

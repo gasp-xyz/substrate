@@ -1299,11 +1299,11 @@ impl<T: Config> Pallet<T> {
 				// index is only set when txs has been shuffled already
 				assert!(index.is_none());
 				let mut shuffled = extrinsic_shuffler::shuffle_using_seed(
-					txs.iter().map(|tx| (Some(tx.who), tx.data.clone())).collect::<Vec<_>>(),
+					txs.iter().map(|tx| (tx.who.clone(), tx.data.clone())).collect::<Vec<_>>(),
 					seed,
 				)
 				.iter()
-				.map(|(who, data)| EnqueuedTx { who: who.clone().unwrap(), data: data.clone() })
+				.map(|(who, data)| EnqueuedTx { who: who.clone(), data: data.clone() })
 				.collect::<Vec<_>>();
 				let _ = sp_std::mem::replace(txs, shuffled);
 				let _ = sp_std::mem::replace(index, Some(0));

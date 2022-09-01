@@ -25,12 +25,10 @@ sp_api::decl_runtime_apis! {
 		/// Checks if given block will start new session
 		fn store_seed(seed: sp_core::H256);
 
-		// /// Checks if given block will start new session
-		// fn store_txs(seed: Vec<Vec<u8>>);
-
-		// TODO should pop only single tx
+		// pops single tx from storage queue
 		fn pop_tx() -> Option<Vec<u8>>;
 
-		fn create_enqueue_txs_inherent(txs: Vec<Vec<u8>>) -> Block::Extrinsic;
+		// creates inherent that injects new txs into storage queue
+		fn create_enqueue_txs_inherent(txs: Vec<sp_ver::EnqueuedTx>) -> Block::Extrinsic;
 	}
 }
