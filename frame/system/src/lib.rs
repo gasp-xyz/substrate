@@ -1299,6 +1299,7 @@ impl<T: Config> Pallet<T> {
 		<BlockSeed<T>>::put(seed);
 		let mut queue = <StorageQueue<T>>::get();
 		let current_block = Self::block_number();
+		log::debug!( target: "runtime::system", "storing seed {} for block {}", seed, current_block);
 		if let Some((nr, index, txs)) = queue.last_mut() {
 			if Self::block_number() == *nr + One::one() {
 				// index is only set when txs has been shuffled already
@@ -1319,10 +1320,14 @@ impl<T: Config> Pallet<T> {
 
 	// TODO: for poc purposes only
 	pub fn store_txs(txs: Vec<EnqueuedTx>) {
+		let block_number = Self::block_number();
 		if !txs.is_empty() {
+			log::debug!( target: "runtime::system", "storing {} txs at block {}", block_number, txs.len() );
 			<StorageQueue<T>>::mutate(|queue| {
-				queue.push((Self::block_number(), None, txs));
+				queue.push((block_number, None, txs));
 			});
+		} else {
+			log::debug!( target: "runtime::system", "no txs to store at block {}", block_number);
 		}
 	}
 

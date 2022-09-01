@@ -448,7 +448,7 @@ where
 			// assert!(extrinsics.len() >= count);
 
 			// let curr_block_txs = extrinsics.iter().take(count);
-			let prev_block_txs = <frame_system::Pallet<System>>::pop_txs()
+			let prev_block_txs = <frame_system::Pallet<System>>::pop_txs((*block.header().count()).into())
 				.into_iter()
 				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
 
