@@ -18,6 +18,14 @@ pub struct PreDigestVer<Block: BlockT> {
 	pub prev_extrisnics: Vec<<Block as BlockT>::Extrinsic>,
 }
 
+pub type EncodedTx = Vec<u8>;
+
+#[derive(Debug, codec::Encode, codec::Decode, scale_info::TypeInfo, Eq, PartialEq, Clone)]
+pub struct EnqueuedTx {
+	pub data: EncodedTx,
+	pub who: sp_core::H256,
+}
+
 pub trait CompatibleDigestItemVer<B: BlockT>: Sized {
 	/// Construct a digest item which contains a BABE pre-digest.
 	fn ver_pre_digest(seal: PreDigestVer<B>) -> Self;

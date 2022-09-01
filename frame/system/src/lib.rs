@@ -102,6 +102,7 @@ use sp_core::storage::well_known_keys;
 use frame_support::traits::GenesisBuild;
 #[cfg(any(feature = "std", test))]
 use sp_io::TestExternalities;
+use sp_ver::{EncodedTx, EnqueuedTx};
 
 pub mod limits;
 #[cfg(test)]
@@ -151,14 +152,6 @@ pub fn extrinsics_data_root<H: Hash>(xts: Vec<Vec<u8>>) -> H::Output {
 pub type ConsumedWeight = PerDispatchClass<Weight>;
 
 pub use pallet::*;
-
-pub type EncodedTx = Vec<u8>;
-
-#[derive(Debug, codec::Encode, codec::Decode, TypeInfo, Eq, PartialEq, Clone)]
-pub struct EnqueuedTx {
-	data: EncodedTx,
-	who: sp_core::H256,
-}
 
 /// Do something when we should be setting the code.
 pub trait SetCode<T: Config> {
@@ -1354,9 +1347,9 @@ impl<T: Config> Pallet<T> {
 				}
 				result.extend_from_slice(&txs[*id as usize..last_index]);
 				len -= count;
-				log::debug!( target: "runtime::system", "fetched {} tx from block", nr);
+				log::debug!( target: "runtime::system", "fetched {} tx from block", nr.clone().saturated_into::<u32>());
 			} else {
-				log::debug!( target: "runtime::system", "unshuffled block found {}", nr);
+				log::debug!( target: "runtime::system", "unshuffled block found {}", nr.clone().saturated_into::<u32>());
 				break
 			}
 		}
