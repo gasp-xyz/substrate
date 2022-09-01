@@ -164,6 +164,7 @@ where
 /// Utility for building new (valid) blocks from a stream of extrinsics.
 pub struct BlockBuilder<'a, Block: BlockT, A: ProvideRuntimeApi<Block>, B> {
 	inherents: Vec<Block::Extrinsic>,
+	executed_extrinsics_count: usize,
 	extrinsics: Vec<Block::Extrinsic>,
 	api: ApiRef<'a, A::Api>,
 	block_id: BlockId<Block>,
@@ -218,6 +219,7 @@ where
 		Ok(Self {
 			parent_hash,
 			inherents: Vec::new(),
+			executed_extrinsics_count: 0,
 			extrinsics: Vec::new(),
 			api,
 			block_id,
@@ -308,7 +310,7 @@ where
 		);
 		next_header.set_extrinsics_root(extrinsics_root);
 		next_header.set_seed(seed);
-		next_header.set_count((curr_block_extrinsics_count as u32).into());
+		next_header.set_count((self.executed_extrinsics_count as u32).into());
 
 		Ok(BuiltBlock {
 			block: <Block as BlockT>::new(next_header, all_extrinsics),
@@ -351,70 +353,39 @@ where
 		let block_id = &self.block_id;
 		self.api.store_seed(&block_id, seed.seed).unwrap();
 
-		// let previous_block_header =
-		// 	self.backend.blockchain().header(BlockId::Hash(parent_hash)).unwrap().unwrap();
+		while let Some(tx_bytes) = self.api.pop_tx(&block_id).unwrap() {
+			if let Ok(xt) = <Block as BlockT>::Extrinsic::decode(&mut tx_bytes.as_slice()) {
+				log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
+				self.executed_extrinsics_count += 1;
 
-		let previous_block_extrinsics = self
-			.api
-			.pop_txs(&block_id)
-			.unwrap() // TODO get rid of unwrap
-			.into_iter()
-			.map(|tx| <Block as BlockT>::Extrinsic::decode(&mut tx.as_slice()).unwrap());
-
-		// let prev_block_extrinsics_count =
-		// 	previous_block_header.count().clone().saturated_into::<usize>();
-		// log::debug!(target: "block_builder", "previous block has {} transactions, {} comming from
-		// that block", previous_block_extrinsics.len(), prev_block_extrinsics_count);
-		//
-		// let previous_block_extrinsics = previous_block_extrinsics
-		// 	.iter()
-		// 	.take(prev_block_extrinsics_count)
-		// 	.cloned()
-		// 	.collect::<Vec<_>>();
-
-		// filter out extrinsics only
-		let extrinsics = previous_block_extrinsics
-			.into_iter()
-			.filter(|e| {
-				self.api
-					.execute_in_transaction(|api| match api.get_signer(&self.block_id, e.clone()) {
-						Ok(result) => TransactionOutcome::Rollback(result),
-						Err(_) => TransactionOutcome::Rollback(None),
-					})
-					.is_some()
-			})
-			.collect::<Vec<_>>();
-
-		let shuffled_extrinsics = extrinsic_shuffler::shuffle::<Block, A>(
-			&self.api,
-			&self.block_id,
-			extrinsics,
-			&seed.seed,
-		);
-
-		self.extrinsics = shuffled_extrinsics.clone();
-
-		let to_be_executed = self
-			.inherents
-			.clone()
-			.into_iter()
-			.chain(shuffled_extrinsics.clone().into_iter())
-			.collect::<Vec<_>>();
-
-		for xt in to_be_executed.iter() {
-			log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
-			self.api.execute_in_transaction(|api| {
-				match apply_transaction_wrapper::<Block, A>(
-					api,
-					block_id,
-					xt.clone(),
-					ExecutionContext::BlockConstruction,
-				) {
-					Ok(Ok(_)) => TransactionOutcome::Commit(()),
-					Ok(Err(_tx_validity)) => TransactionOutcome::Rollback(()),
-					Err(_e) => TransactionOutcome::Rollback(()),
+				if !self.api.execute_in_transaction(|api| {
+					match apply_transaction_wrapper::<Block, A>(
+						api,
+						block_id,
+						xt.clone(),
+						ExecutionContext::BlockConstruction,
+					) {
+						Ok(Ok(_)) => TransactionOutcome::Commit((true)),
+						Ok(Err(validity_err)) if validity_err.exhausted_resources() => {
+							// TODO distinguish between exhaust resources and other failures
+							log::debug!(target: "block_builder", "exhaust resources no room for other txs from queue");
+							TransactionOutcome::Rollback(false)
+						},
+						Ok(Err(validity_err)) => {
+							log::debug!(target: "block_builder", "enqueued tx execution {} failed '${}'", BlakeTwo256::hash(&xt.encode()), validity_err);
+							TransactionOutcome::Commit(true)
+						},
+						Err(_e) => {
+							log::debug!(target: "block_builder", "enqueued tx execution {} failed - unknwown execution problem", BlakeTwo256::hash(&xt.encode()));
+							TransactionOutcome::Commit(true)
+						}
+					}
+				}) {
+					break
 				}
-			})
+			} else {
+				log::debug!(target: "block_builder", "couldnt deserialize tx from queue, ignoring it");
+			}
 		}
 	}
 

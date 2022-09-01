@@ -133,7 +133,7 @@ use sp_runtime::{
 		self, Applyable, CheckEqual, Checkable, Dispatchable, Extrinsic, Header,
 		IdentifyAccountWithLookup, NumberFor, One, Saturating, ValidateUnsigned, Zero,
 	},
-	transaction_validity::{TransactionSource, TransactionValidity},
+	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
 	ApplyExtrinsicResult, SaturatedConversion,
 };
 use sp_std::{marker::PhantomData, prelude::*};
@@ -442,15 +442,16 @@ where
 
 			let signature_batching = sp_runtime::SignatureBatching::start();
 
+			let enqueued_txs = <frame_system::Pallet<System>>::pop_txs((*block.header().count()).saturated_into())
+				.into_iter()
+				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
+
 			let (header, curr_block_txs) = block.deconstruct();
 			// let count: usize = header.count().clone().saturated_into::<usize>();
 			//
 			// assert!(extrinsics.len() >= count);
 
 			// let curr_block_txs = extrinsics.iter().take(count);
-			let prev_block_txs = <frame_system::Pallet<System>>::pop_txs((*block.header().count()).into())
-				.into_iter()
-				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
 
 			// TODO: !!! implement proper mechanism !!!
 			// let max = System::BlockWeights::get();
@@ -462,26 +463,16 @@ where
 			// }
 
 
-
-			let extrinsics_with_author: Vec<(_,_)> = prev_block_txs.into_iter().map(|e|
-					(
-						// its safe to panic here
-						(e.get_account_id(&Default::default()).unwrap(), e)
-					)
-			).collect();
-			let shuffled_extrinsics = extrinsic_shuffler::shuffle_using_seed(extrinsics_with_author, &header.seed().seed);
-
-
 			let curr_block_inherents = curr_block_txs.iter().filter(|e| !e.is_signed().unwrap()); //.collect::<Vec<_>>();
 			let curr_block_inherents_len = curr_block_inherents.clone().count();
 			let curr_block_extrinsics = curr_block_txs.iter().filter(|e| e.is_signed().unwrap());
 
 			// verify that txs in block matches shuffled on our own);
-			assert_eq!(shuffled_extrinsics, curr_block_extrinsics.cloned().collect::<Vec<_>>());
+			assert_eq!(enqueued_txs, curr_block_extrinsics.cloned().collect::<Vec<_>>());
 
 			let tx_to_be_executed = curr_block_inherents.clone()
 				.take(curr_block_inherents_len-1)
-				.chain(shuffled_extrinsics.iter())
+				.chain(enqueued_txs.iter())
 				.chain(curr_block_inherents.skip(curr_block_inherents_len-1))
 				.cloned().collect::<Vec<_>>();
 
@@ -490,9 +481,6 @@ where
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
 			}
-
-			//  <frame_system::Pallet<System>>::store_txs(curr_block_extrinsics.map(|e| e.encode()).collect());
-			//  any final checks
 			Self::final_checks(&header);
 		}
 	}
@@ -502,10 +490,19 @@ where
 		extrinsics: Vec<Block::Extrinsic>,
 		block_number: NumberFor<Block>,
 	) {
-		extrinsics.into_iter().for_each(|e| {
-			if let Err(e) = Self::apply_extrinsic(e) {
-				let err: &'static str = e.into();
-				panic!("{}", err)
+		extrinsics.into_iter().for_each(|tx| {
+			let is_extrinsic = tx.is_signed().unwrap();
+			if let Err(e) = Self::apply_extrinsic(tx) {
+				if is_extrinsic &&
+					matches!(e, TransactionValidityError::Invalid(err) if !err.exhausted_resources())
+				{
+					// we allow for every error other than exhoust resources
+					let err: &'static str = e.into();
+					panic!("{}", err)
+				} else {
+					sp_runtime::print("non fatal error when executing tx");
+					sp_runtime::print(Into::<&'static str>::into(e));
+				}
 			}
 		});
 
