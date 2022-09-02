@@ -1316,12 +1316,12 @@ impl<T: Config> Pallet<T> {
 	pub fn store_txs(txs: Vec<EnqueuedTx>) {
 		let block_number = Self::block_number().saturated_into::<u32>();
 		if !txs.is_empty() {
-			log::debug!( target: "runtime::system", "storing {} txs at block {}", block_number, txs.len() );
+			log::debug!( target: "ver", "storing {} txs at block {}", block_number, txs.len() );
 			<StorageQueue<T>>::mutate(|queue| {
 				queue.push((Self::block_number(), None, txs));
 			});
 		} else {
-			log::debug!( target: "runtime::system", "no txs to store at block {}", block_number);
+			log::debug!( target: "ver", "no txs to store at block {}", block_number);
 		}
 	}
 
@@ -1341,9 +1341,9 @@ impl<T: Config> Pallet<T> {
 		let mut queue = <StorageQueue<T>>::take();
 
 		for (i, (nr, mut index, txs)) in queue.iter_mut().enumerate() {
-			log::debug!( target: "runtime::system", "{} tx to be execute left", len);
+			log::debug!( target: "ver", "{} tx to be execute left", len);
 			if len == 0 {
-				log::debug!( target: "runtime::system", "all scheduled txs executed");
+				log::debug!( target: "ver", "all scheduled txs executed");
 				break
 			}
 
@@ -1356,9 +1356,9 @@ impl<T: Config> Pallet<T> {
 				}
 				result.extend_from_slice(&txs[*id as usize..last_index]);
 				len -= count;
-				log::debug!( target: "runtime::system", "fetched {} tx from block", nr.clone().saturated_into::<u32>());
+				log::debug!( target: "ver", "fetched {} tx from block", nr.clone().saturated_into::<u32>());
 			} else {
-				log::debug!( target: "runtime::system", "unshuffled block found {}", nr.clone().saturated_into::<u32>());
+				log::debug!( target: "ver", "unshuffled block found {}", nr.clone().saturated_into::<u32>());
 				break
 			}
 		}
