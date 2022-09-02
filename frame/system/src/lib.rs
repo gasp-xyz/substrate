@@ -1325,12 +1325,14 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn enqueued_txs(acc: sp_runtime::AccountId32) -> Vec<EncodedTx> {
-		let mut result: Vec<EnqueuedTx> = Vec::new();
-		let mut fully_executed_blocks = 0;
+	pub fn enqueued_txs_count(acc: sp_runtime::AccountId32) -> usize {
 		let mut queue = <StorageQueue<T>>::get();
-
-		queue.iter();
+		queue
+			.iter()
+			.map(|(_, _, txs)| txs)
+			.flatten()
+			.filter(|tx| tx.who == Some(acc.clone()))
+			.count()
 	}
 
 	pub fn pop_txs(mut len: usize) -> Vec<EncodedTx> {

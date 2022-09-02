@@ -22,7 +22,11 @@ sp_api::decl_runtime_apis! {
 		/// Checks if storage migration is scheuled
 		fn is_storage_migration_scheduled() -> bool;
 
-		/// Checks if given block will start new session
+		/// fetch number of enqueued txs from given account
+		fn enqueued_txs_count(seed: AccountId32);
+
+		/// stores shuffling seed for current block & shuffles
+		/// previous block extrinsics if any enqueued
 		fn store_seed(seed: sp_core::H256);
 
 		// pops single tx from storage queue
