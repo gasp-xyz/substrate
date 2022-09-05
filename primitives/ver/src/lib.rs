@@ -20,11 +20,11 @@ pub struct PreDigestVer<Block: BlockT> {
 
 pub type EncodedTx = Vec<u8>;
 
-#[derive(Debug, codec::Encode, codec::Decode, scale_info::TypeInfo, Eq, PartialEq, Clone)]
-pub struct EnqueuedTx {
-	pub data: EncodedTx,
-	pub who: Option<sp_runtime::AccountId32>,
-}
+// #[derive(Debug, codec::Encode, codec::Decode, scale_info::TypeInfo, Eq,
+// PartialEq, Clone)] pub struct EnqueuedTx {
+// 	pub data: EncodedTx,
+// 	pub who: Option<sp_runtime::AccountId32>,
+// }
 
 pub trait CompatibleDigestItemVer<B: BlockT>: Sized {
 	/// Construct a digest item which contains a BABE pre-digest.

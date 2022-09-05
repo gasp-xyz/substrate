@@ -269,14 +269,12 @@ where
 			}
 		});
 
+		let valid_txs_count = valid_txs.len();
 		let store_txs_inherent = self
 			.api
 			.create_enqueue_txs_inherent(
 				&self.block_id,
-				valid_txs
-					.iter()
-					.map(|(who, tx)| sp_ver::EnqueuedTx { data: tx.encode(), who: who.clone() })
-					.collect(),
+				valid_txs.into_iter().map(|(_, tx)| tx).collect(),
 			)
 			.unwrap();
 
@@ -304,7 +302,7 @@ where
 			.into_storage_changes(&state, parent_hash)
 			.map_err(sp_blockchain::Error::StorageChanges)?;
 
-		log::debug!(target: "block_builder", "consume {} valid transactios", valid_txs.len());
+		log::debug!(target: "block_builder", "consume {} valid transactios", valid_txs_count);
 
 		// store hash of all extrinsics include in given bloack
 		//

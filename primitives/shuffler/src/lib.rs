@@ -91,9 +91,9 @@ impl FisherYates {
 }
 
 pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clone>(
-	extrinsics: Vec<(Option<A>, E)>,
+	extrinsics: Vec<(A, E)>,
 	seed: &H256,
-) -> Vec<(Option<A>, E)> {
+) -> Vec<(A, E)> {
 	log::debug!(target: "block_shuffler", "shuffling extrinsics with seed: {:2X?}", seed.as_bytes());
 	log::debug!(target: "block_shuffler", "origin order: [");
 	for (_, tx) in extrinsics.iter() {
@@ -110,12 +110,10 @@ pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clon
 	// let mut slots = Vec::with_capacity(extrinsics.len());
 
 	// initial slots - just inherents
-	let mut slots = extrinsics.iter().filter(|tx| tx.0.is_none()).cloned().collect::<Vec<(_, _)>>();
-	let only_extrinsics =
-		extrinsics.into_iter().filter(|tx| tx.0.is_some()).collect::<Vec<(_, _)>>();
+	let mut slots = Vec::new();
 
-	let mut grouped_extrinsics: BTreeMap<Option<_>, VecDeque<_>> =
-		only_extrinsics.into_iter().fold(BTreeMap::new(), |mut groups, (who, tx)| {
+	let mut grouped_extrinsics: BTreeMap<_, VecDeque<_>> =
+		extrinsics.into_iter().fold(BTreeMap::new(), |mut groups, (who, tx)| {
 			groups.entry(who).or_insert_with(VecDeque::new).push_back(tx);
 			groups
 		});
@@ -155,44 +153,44 @@ pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clon
 	slots
 }
 
-/// shuffles extrinsics assuring that extrinsics signed by single account will be still evaluated
-/// in proper order
-#[cfg(feature = "std")]
-pub fn shuffle<'a, Block, Api>(
-	api: &ApiRef<'a, Api::Api>,
-	block_id: &BlockId<Block>,
-	extrinsics: Vec<Block::Extrinsic>,
-	seed: &H256,
-) -> Vec<Block::Extrinsic>
-where
-	Block: BlockT,
-	Api: ProvideRuntimeApi<Block> + 'a,
-	Api::Api: VerApi<Block>,
-{
-	if extrinsics.len() <= 1 {
-		return extrinsics
-	}
-	let extrinsics: Vec<(Option<AccountId32>, Block::Extrinsic)> = extrinsics
-		.into_iter()
-		.map(|tx| {
-			let tx_hash = BlakeTwo256::hash(&tx.encode());
-			let who = api.execute_in_transaction(|api| {
-				// store deserialized data and revert state modification caused by 'get_info' call
-				match api.get_signer(block_id, tx.clone()){
-					Ok(result) => TransactionOutcome::Rollback(result),
-					Err(_) => TransactionOutcome::Rollback(None)
-				}
-			});
-			log::debug!(target: "block_shuffler", "who:{:48}  extrinsic:{:?}",who.clone().map(|x| x.0.to_ss58check()).unwrap_or_else(|| String::from("None")), tx_hash);
-			(who.map(|x| x.0), tx)
-		}).collect();
-
-	shuffle_using_seed(extrinsics, seed)
-		.iter()
-		.map(|(who, tx)| tx)
-		.cloned()
-		.collect()
-}
+// /// shuffles extrinsics assuring that extrinsics signed by single account will be still evaluated
+// /// in proper order
+// #[cfg(feature = "std")]
+// pub fn shuffle<'a, Block, Api>(
+// 	api: &ApiRef<'a, Api::Api>,
+// 	block_id: &BlockId<Block>,
+// 	extrinsics: Vec<Block::Extrinsic>,
+// 	seed: &H256,
+// ) -> Vec<Block::Extrinsic>
+// where
+// 	Block: BlockT,
+// 	Api: ProvideRuntimeApi<Block> + 'a,
+// 	Api::Api: VerApi<Block>,
+// {
+// 	if extrinsics.len() <= 1 {
+// 		return extrinsics
+// 	}
+// 	let extrinsics: Vec<(Option<AccountId32>, Block::Extrinsic)> = extrinsics
+// 		.into_iter()
+// 		.map(|tx| {
+// 			let tx_hash = BlakeTwo256::hash(&tx.encode());
+// 			let who = api.execute_in_transaction(|api| {
+// 				// store deserialized data and revert state modification caused by 'get_info' call
+// 				match api.get_signer(block_id, tx.clone()){
+// 					Ok(result) => TransactionOutcome::Rollback(result),
+// 					Err(_) => TransactionOutcome::Rollback(None)
+// 				}
+// 			});
+// 			log::debug!(target: "block_shuffler", "who:{:48}  extrinsic:{:?}",who.clone().map(|x|
+// x.0.to_ss58check()).unwrap_or_else(|| String::from("None")), tx_hash); 			(who.map(|x| x.0), tx)
+// 		}).collect();
+//
+// 	shuffle_using_seed(extrinsics, seed)
+// 		.iter()
+// 		.map(|(who, tx)| tx)
+// 		.cloned()
+// 		.collect()
+// }
 
 #[derive(derive_more::Display, Debug)]
 pub enum Error {

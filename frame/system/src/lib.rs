@@ -102,7 +102,7 @@ use sp_core::storage::well_known_keys;
 use frame_support::traits::GenesisBuild;
 #[cfg(any(feature = "std", test))]
 use sp_io::TestExternalities;
-use sp_ver::{EncodedTx, EnqueuedTx};
+use sp_ver::EncodedTx;
 
 pub mod limits;
 #[cfg(test)]
@@ -386,10 +386,11 @@ pub mod pallet {
 		#[pallet::weight(100)]
 		pub fn enqueue_txs(
 			origin: OriginFor<T>,
-			txs: Vec<EnqueuedTx>,
+			txs: Vec<(T::AccountId, EncodedTx)>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
-			let hashes = txs.iter().map(|tx| T::Hashing::hash(&tx.data[..])).collect::<Vec<_>>();
+			let hashes =
+				txs.iter().map(|(_, data)| T::Hashing::hash(&data[..])).collect::<Vec<_>>();
 			Self::deposit_log(generic::DigestItem::Other(hashes.encode()));
 			Self::store_txs(txs);
 			Ok(().into())
@@ -594,8 +595,11 @@ pub mod pallet {
 	/// Map of block numbers to block shuffling seeds
 	//TODO should use bounded vec
 	#[pallet::storage]
-	pub type StorageQueue<T: Config> =
-		StorageValue<_, Vec<(T::BlockNumber, Option<u32>, Vec<EnqueuedTx>)>, ValueQuery>;
+	pub type StorageQueue<T: Config> = StorageValue<
+		_,
+		Vec<(T::BlockNumber, Option<u32>, Vec<(T::AccountId, EncodedTx)>)>,
+		ValueQuery,
+	>;
 
 	/// Extrinsics data for the current block (maps an extrinsic's index to its data).
 	#[pallet::storage]
@@ -1298,13 +1302,7 @@ impl<T: Config> Pallet<T> {
 			if Self::block_number() == *nr + One::one() {
 				// index is only set when txs has been shuffled already
 				assert!(index.is_none());
-				let mut shuffled = extrinsic_shuffler::shuffle_using_seed(
-					txs.iter().map(|tx| (tx.who.clone(), tx.data.clone())).collect::<Vec<_>>(),
-					seed,
-				)
-				.iter()
-				.map(|(who, data)| EnqueuedTx { who: who.clone(), data: data.clone() })
-				.collect::<Vec<_>>();
+				let shuffled = extrinsic_shuffler::shuffle_using_seed(txs.clone(), seed);
 				let _ = sp_std::mem::replace(txs, shuffled);
 				let _ = sp_std::mem::replace(index, Some(0));
 			}
@@ -1312,8 +1310,7 @@ impl<T: Config> Pallet<T> {
 		<StorageQueue<T>>::put(queue);
 	}
 
-	// TODO: for poc purposes only
-	pub fn store_txs(txs: Vec<EnqueuedTx>) {
+	pub fn store_txs(txs: Vec<(T::AccountId, EncodedTx)>) {
 		let block_number = Self::block_number().saturated_into::<u32>();
 		if !txs.is_empty() {
 			log::debug!( target: "ver", "storing {} txs at block {}", block_number, txs.len() );
@@ -1325,18 +1322,18 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn enqueued_txs_count(acc: sp_runtime::AccountId32) -> usize {
+	pub fn enqueued_txs_count(acc: &T::AccountId) -> usize {
 		let mut queue = <StorageQueue<T>>::get();
 		queue
 			.iter()
 			.map(|(_, _, txs)| txs)
 			.flatten()
-			.filter(|tx| tx.who == Some(acc.clone()))
+			.filter(|(who, _)| who == acc)
 			.count()
 	}
 
 	pub fn pop_txs(mut len: usize) -> Vec<EncodedTx> {
-		let mut result: Vec<EnqueuedTx> = Vec::new();
+		let mut result: Vec<_> = Vec::new();
 		let mut fully_executed_blocks = 0;
 		let mut queue = <StorageQueue<T>>::take();
 
@@ -1365,7 +1362,7 @@ impl<T: Config> Pallet<T> {
 
 		queue.drain(0..fully_executed_blocks);
 		<StorageQueue<T>>::put(queue);
-		result.iter().map(|enqueued_tx| enqueued_tx.data.clone()).collect()
+		result.iter().map(|(_, data)| data.clone()).collect()
 	}
 
 	/// Start the execution of a particular block.

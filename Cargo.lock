@@ -3975,6 +3975,15 @@ dependencies = [
 [[package]]
 name = "mangata-primitives"
 version = "0.1.0"
+source = "git+https://github.com/mangata-finance//mangata-node?branch=develop-v0.9.24#9f8b5549f859bfa465922df8723495f034d40ca0"
+dependencies = [
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
+name = "mangata-primitives"
+version = "0.1.0"
 source = "git+https://github.com/mangata-finance/mangata-node?branch=develop-v0.9.24#5b8c2ffe036bac82e8ba0b7ef070ad53452f826a"
 dependencies = [
  "sp-core",
@@ -4530,7 +4539,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "mangata-primitives",
+ "mangata-primitives 0.1.0 (git+https://github.com/mangata-finance/mangata-node?branch=develop-v0.9.24)",
  "orml-traits",
  "parity-scale-codec",
  "scale-info",
@@ -10656,6 +10665,7 @@ dependencies = [
  "derive_more",
  "futures",
  "log",
+ "mangata-primitives 0.1.0 (git+https://github.com/mangata-finance//mangata-node?branch=develop-v0.9.24)",
  "parity-scale-codec",
  "serde",
  "sp-api",

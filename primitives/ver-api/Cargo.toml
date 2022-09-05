@@ -25,6 +25,7 @@ sp-core = { version = "6.0.0", default-features = false, path = "../../primitive
 sp-blockchain = { version = "4.0.0-dev", optional = true, path = "../../primitives/blockchain"}
 sp-ver = { version = "4.0.0-dev", default-features = false, path = "../../primitives/ver"}
 sp-runtime = { version = "6.0.0", default-features = false, path = "../../primitives/runtime"}
+mangata-primitives = { git = "https://github.com/mangata-finance//mangata-node", branch = "develop-v0.9.24" }
 
 [features]
 default = [ "std" ]
