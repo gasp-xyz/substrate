@@ -386,7 +386,7 @@ pub mod pallet {
 		#[pallet::weight(100)]
 		pub fn enqueue_txs(
 			origin: OriginFor<T>,
-			txs: Vec<(T::AccountId, EncodedTx)>,
+			txs: Vec<(Option<T::AccountId>, EncodedTx)>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			let hashes =
@@ -597,7 +597,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type StorageQueue<T: Config> = StorageValue<
 		_,
-		Vec<(T::BlockNumber, Option<u32>, Vec<(T::AccountId, EncodedTx)>)>,
+		Vec<(T::BlockNumber, Option<u32>, Vec<(Option<T::AccountId>, EncodedTx)>)>,
 		ValueQuery,
 	>;
 
@@ -1310,7 +1310,7 @@ impl<T: Config> Pallet<T> {
 		<StorageQueue<T>>::put(queue);
 	}
 
-	pub fn store_txs(txs: Vec<(T::AccountId, EncodedTx)>) {
+	pub fn store_txs(txs: Vec<(Option<T::AccountId>, EncodedTx)>) {
 		let block_number = Self::block_number().saturated_into::<u32>();
 		if !txs.is_empty() {
 			log::debug!( target: "ver", "storing {} txs at block {}", block_number, txs.len() );
@@ -1328,7 +1328,7 @@ impl<T: Config> Pallet<T> {
 			.iter()
 			.map(|(_, _, txs)| txs)
 			.flatten()
-			.filter(|(who, _)| who == acc)
+			.filter(|(who, _)| who.clone() == Some(acc.clone()))
 			.count()
 	}
 
