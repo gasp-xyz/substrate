@@ -153,45 +153,6 @@ pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clon
 	slots
 }
 
-// /// shuffles extrinsics assuring that extrinsics signed by single account will be still evaluated
-// /// in proper order
-// #[cfg(feature = "std")]
-// pub fn shuffle<'a, Block, Api>(
-// 	api: &ApiRef<'a, Api::Api>,
-// 	block_id: &BlockId<Block>,
-// 	extrinsics: Vec<Block::Extrinsic>,
-// 	seed: &H256,
-// ) -> Vec<Block::Extrinsic>
-// where
-// 	Block: BlockT,
-// 	Api: ProvideRuntimeApi<Block> + 'a,
-// 	Api::Api: VerApi<Block>,
-// {
-// 	if extrinsics.len() <= 1 {
-// 		return extrinsics
-// 	}
-// 	let extrinsics: Vec<(Option<AccountId32>, Block::Extrinsic)> = extrinsics
-// 		.into_iter()
-// 		.map(|tx| {
-// 			let tx_hash = BlakeTwo256::hash(&tx.encode());
-// 			let who = api.execute_in_transaction(|api| {
-// 				// store deserialized data and revert state modification caused by 'get_info' call
-// 				match api.get_signer(block_id, tx.clone()){
-// 					Ok(result) => TransactionOutcome::Rollback(result),
-// 					Err(_) => TransactionOutcome::Rollback(None)
-// 				}
-// 			});
-// 			log::debug!(target: "block_shuffler", "who:{:48}  extrinsic:{:?}",who.clone().map(|x|
-// x.0.to_ss58check()).unwrap_or_else(|| String::from("None")), tx_hash); 			(who.map(|x| x.0), tx)
-// 		}).collect();
-//
-// 	shuffle_using_seed(extrinsics, seed)
-// 		.iter()
-// 		.map(|(who, tx)| tx)
-// 		.cloned()
-// 		.collect()
-// }
-
 #[derive(derive_more::Display, Debug)]
 pub enum Error {
 	#[display(fmt = "Cannot apply inherents")]
@@ -207,6 +168,12 @@ mod tests {
 		collections::{BTreeSet, HashMap},
 		str::FromStr,
 	};
+
+	pub fn ignore_author<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clone>(
+		extrinsics: Vec<(A, E)>,
+	) -> Vec<E> {
+		extrinsics.into_iter().map(|(_, tx)| tx).collect()
+	}
 
 	#[test]
 	fn shuffle_using_seed_works() {
@@ -226,6 +193,7 @@ mod tests {
 		let origin_order = txs_with_author.iter().map(|(_, tx)| tx).cloned().collect::<Vec<_>>();
 
 		let shuffled_txs = shuffle_using_seed(txs_with_author.clone(), &Default::default());
+		let shuffled_txs = ignore_author(shuffled_txs);
 
 		assert_ne!(origin_order, shuffled_txs);
 		assert_eq!(origin_order.len(), shuffled_txs.len());
@@ -292,35 +260,29 @@ mod tests {
 	}
 
 	#[test]
-	fn inherents_executed_with_highest_priority() {
+	fn shuffle_using_same_seed_produces_same_results() {
 		let input = vec![
-			(None, 1),
-			(None, 2),
-			(None, 3),
-			(None, 4),
-			(None, 5),
-			(Some("A"), 10),
-			(Some("B"), 20),
-			(Some("C"), 30),
-			(Some("D"), 40),
+			(Some("A"), 1),
+			(Some("A"), 2),
+			(Some("A"), 3),
+			(Some("A"), 4),
+			(Some("A"), 5),
+			(Some("B"), 11),
+			(Some("B"), 12),
+			(Some("C"), 21),
 		];
 
-		let shuffled = shuffle_using_seed(
+		let shuffled1 = shuffle_using_seed(
 			input.clone(),
-			&H256::from_str("0xff8611a4d212fc161dae19dd57f0f1ba9309f45d6207da13f2d3eab4c6839e91")
+			&H256::from_str("0x0876d51dc2c109b2e9bca322e8706879d68984a8031a537d76d0b21693a3dbd0")
 				.unwrap(),
 		);
-
-		// check that txs comming from None account are in the front
-		assert_eq!(shuffled[0], 1);
-		assert_eq!(shuffled[1], 2);
-		assert_eq!(shuffled[2], 3);
-		assert_eq!(shuffled[3], 4);
-		assert_eq!(shuffled[4], 5);
-
-		// check that rest of the transactions is still shuffled
-		let origin_order = input.iter().map(|(_, tx)| tx).cloned().collect::<Vec<_>>();
-		assert_ne!(origin_order, shuffled);
+		let shuffled2 = shuffle_using_seed(
+			input.clone(),
+			&H256::from_str("0x0876d51dc2c109b2e9bca322e8706879d68984a8031a537d76d0b21693a3dbd0")
+				.unwrap(),
+		);
+		assert_eq!(shuffled1, shuffled2);
 	}
 
 	#[test]

@@ -341,7 +341,7 @@ where
 			) {
 				Ok(Ok(_)) => {
 					inherents.push(xt);
-					TransactionOutcome::Rollback(Ok(()))
+					TransactionOutcome::Commit(Ok(()))
 				},
 				Ok(Err(tx_validity)) => TransactionOutcome::Rollback(Err(
 					ApplyExtrinsicFailed::Validity(tx_validity).into(),
