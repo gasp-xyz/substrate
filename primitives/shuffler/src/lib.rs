@@ -144,7 +144,7 @@ pub fn shuffle_using_seed<A: sp_std::cmp::Ord + Encode + Clone, E: Encode + Clon
 	// 	.collect();
 
 	log::debug!(target: "block_shuffler", "shuffled order:[");
-	for tx in slots.iter() {
+	for (_who, tx) in slots.iter() {
 		let tx_hash = BlakeTwo256::hash(&tx.encode());
 		log::debug!(target: "block_shuffler", "{:?}", tx_hash);
 	}
