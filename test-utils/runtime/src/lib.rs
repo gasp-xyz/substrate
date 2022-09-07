@@ -719,6 +719,12 @@ cfg_if! {
 
 				fn store_seed(_seed: sp_core::H256){
 				}
+
+
+				  fn create_enqueue_txs_inherent(_: Vec<<Block as BlockT>::Extrinsic>) -> <Block as BlockT>::Extrinsic{
+					  todo!()
+				  }
+				fn pop_tx() -> std::option::Option<sp_application_crypto::Vec<u8>> { todo!() }
 			}
 
 			impl sp_api::Metadata<Block> for Runtime {

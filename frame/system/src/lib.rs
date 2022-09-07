@@ -1294,10 +1294,11 @@ impl<T: Config> Pallet<T> {
 	/// store seed and shuffle extrinsics from precedesing block
 	pub fn set_block_seed(seed: &sp_core::H256) {
 		// TODO check in on_finalize if seed has been set for every block
+		sp_runtime::runtime_logger::RuntimeLogger::init();
 		<BlockSeed<T>>::put(seed);
 		let mut queue = <StorageQueue<T>>::get();
 		let current_block = Self::block_number().saturated_into::<u32>();
-		log::debug!( target: "runtime::system", "storing seed {} for block {}", seed, current_block);
+		log::debug!( target: "runtime::ver", "storing seed {} for block {}", seed, current_block);
 		if let Some((nr, index, txs)) = queue.last_mut() {
 			if Self::block_number() == *nr + One::one() {
 				// index is only set when txs has been shuffled already
@@ -1312,13 +1313,14 @@ impl<T: Config> Pallet<T> {
 
 	pub fn store_txs(txs: Vec<(Option<T::AccountId>, EncodedTx)>) {
 		let block_number = Self::block_number().saturated_into::<u32>();
+		sp_runtime::runtime_logger::RuntimeLogger::init();
 		if !txs.is_empty() {
-			log::debug!( target: "ver", "storing {} txs at block {}", block_number, txs.len() );
+			log::debug!( target: "runtime::ver", "storing {} txs at block {}", block_number, txs.len() );
 			<StorageQueue<T>>::mutate(|queue| {
 				queue.push((Self::block_number(), None, txs));
 			});
 		} else {
-			log::debug!( target: "ver", "no txs to store at block {}", block_number);
+			log::debug!( target: "runtime::ver", "no txs to store at block {}", block_number);
 		}
 	}
 
@@ -1333,29 +1335,37 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn pop_txs(mut len: usize) -> Vec<EncodedTx> {
+		sp_runtime::runtime_logger::RuntimeLogger::init();
 		let mut result: Vec<_> = Vec::new();
 		let mut fully_executed_blocks = 0;
 		let mut queue = <StorageQueue<T>>::take();
+		if queue.is_empty() {
+			log::debug!( target: "runtime::ver", "popping {} txs from storage queue - queue is empty!" , len);
+		} else {
+			log::debug!( target: "runtime::ver", "popping {} txs from storage queue" , len);
+		}
 
-		for (i, (nr, mut index, txs)) in queue.iter_mut().enumerate() {
-			log::debug!( target: "ver", "{} tx to be execute left", len);
+		for (i, (nr, index, txs)) in queue.iter_mut().enumerate() {
+			log::info!( target: "runtime::ver", "processing storage queue at block {}, found {} txs", nr.clone().saturated_into::<u32>(), txs.len());
+			log::debug!( target: "runtime::ver", "{} tx to be poped left", len);
 			if len == 0 {
-				log::debug!( target: "ver", "all scheduled txs executed");
+				log::debug!( target: "runtime::ver", "all scheduled txs executed");
 				break
 			}
 
-			if let Some(id) = &mut index {
+			if let Some(id) = index {
+				log::debug!( target: "runtime::ver", "{} txs availabe at block {}", txs.len(), nr.clone().saturated_into::<u32>());
 				let count = sp_std::cmp::min(txs.len() - (*id) as usize, len) as usize;
 				let last_index = *id as usize + count;
-				*id += *id + 1;
 				if last_index == txs.len() {
 					fully_executed_blocks += 1;
 				}
 				result.extend_from_slice(&txs[*id as usize..last_index]);
+				*id += count as u32;
 				len -= count;
-				log::debug!( target: "ver", "fetched {} tx from block", nr.clone().saturated_into::<u32>());
+				log::debug!( target: "runtime::ver", "fetched {} tx from block {}", count, nr.clone().saturated_into::<u32>());
 			} else {
-				log::debug!( target: "ver", "unshuffled block found {}", nr.clone().saturated_into::<u32>());
+				log::debug!( target: "runtime::ver", "unshuffled block found {}", nr.clone().saturated_into::<u32>());
 				break
 			}
 		}

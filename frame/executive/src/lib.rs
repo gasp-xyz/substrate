@@ -130,7 +130,7 @@ use schnorrkel::vrf::{VRFOutput, VRFProof};
 use sp_runtime::{
 	generic::Digest,
 	traits::{
-		self, Applyable, CheckEqual, Checkable, Dispatchable, Extrinsic, Header,
+		self, Applyable, BlakeTwo256, CheckEqual, Checkable, Dispatchable, Extrinsic, Hash, Header,
 		IdentifyAccountWithLookup, NumberFor, One, Saturating, ValidateUnsigned, Zero,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
@@ -490,9 +490,12 @@ where
 		extrinsics: Vec<Block::Extrinsic>,
 		block_number: NumberFor<Block>,
 	) {
+		sp_runtime::runtime_logger::RuntimeLogger::init();
 		extrinsics.into_iter().for_each(|tx| {
+			let tx_hash = BlakeTwo256::hash(&tx.encode());
 			let is_extrinsic = tx.is_signed().unwrap();
 			if let Err(e) = Self::apply_extrinsic(tx) {
+				log::debug!(target: "runtime::ver", "executing extrinsic :{:?}", tx_hash);
 				if is_extrinsic &&
 					matches!(e, TransactionValidityError::Invalid(err) if !err.exhausted_resources())
 				{
@@ -500,8 +503,7 @@ where
 					let err: &'static str = e.into();
 					panic!("{}", err)
 				} else {
-					sp_runtime::print("non fatal error when executing tx");
-					sp_runtime::print(Into::<&'static str>::into(e));
+					log::debug!(target: "runtime::ver", "executing extrinsic :{:?} error '${:?}'", tx_hash, Into::<&'static str>::into(e));
 				}
 			}
 		});

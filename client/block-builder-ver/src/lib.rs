@@ -164,7 +164,6 @@ where
 /// Utility for building new (valid) blocks from a stream of extrinsics.
 pub struct BlockBuilder<'a, Block: BlockT, A: ProvideRuntimeApi<Block>, B> {
 	inherents: Vec<Block::Extrinsic>,
-	executed_extrinsics_count: usize,
 	extrinsics: Vec<Block::Extrinsic>,
 	api: ApiRef<'a, A::Api>,
 	block_id: BlockId<Block>,
@@ -219,7 +218,6 @@ where
 		Ok(Self {
 			parent_hash,
 			inherents: Vec::new(),
-			executed_extrinsics_count: 0,
 			extrinsics: Vec::new(),
 			api,
 			block_id,
@@ -278,14 +276,13 @@ where
 			)
 			.unwrap();
 
-		self.extrinsics.push(store_txs_inherent.clone());
-
 		apply_transaction_wrapper::<Block, A>(
 			&self.api,
 			&self.block_id,
-			store_txs_inherent,
+			store_txs_inherent.clone(),
 			ExecutionContext::BlockConstruction,
 		)
+		.unwrap()
 		.unwrap();
 
 		// TODO get rid of collect
@@ -306,9 +303,13 @@ where
 
 		// store hash of all extrinsics include in given bloack
 		//
-		let curr_block_extrinsics_count = self.inherents.len() + self.extrinsics.len();
-		let all_extrinsics: Vec<_> =
-			self.inherents.iter().chain(self.extrinsics.iter()).cloned().collect();
+		let all_extrinsics: Vec<_> = self
+			.inherents
+			.iter()
+			.chain(self.extrinsics.iter())
+			.chain(std::iter::once(&store_txs_inherent))
+			.cloned()
+			.collect();
 
 		let extrinsics_root = HashFor::<Block>::ordered_trie_root(
 			all_extrinsics.iter().map(Encode::encode).collect(),
@@ -316,7 +317,7 @@ where
 		);
 		next_header.set_extrinsics_root(extrinsics_root);
 		next_header.set_seed(seed);
-		next_header.set_count((self.executed_extrinsics_count as u32).into());
+		next_header.set_count((self.extrinsics.len() as u32).into());
 
 		Ok(BuiltBlock {
 			block: <Block as BlockT>::new(next_header, all_extrinsics),
@@ -357,12 +358,14 @@ where
 	pub fn apply_previous_block_extrinsics(&mut self, seed: ShufflingSeed) {
 		let parent_hash = self.parent_hash;
 		let block_id = &self.block_id;
+		log::debug!(target: "block_builder", "BlockBuilder::store_seed");
 		self.api.store_seed(&block_id, seed.seed).unwrap();
+		log::debug!(target: "block_builder", "BlockBuilder::pop_tx");
+		let extrinsics = &mut self.extrinsics;
 
 		while let Some(tx_bytes) = self.api.pop_tx(&block_id).unwrap() {
 			if let Ok(xt) = <Block as BlockT>::Extrinsic::decode(&mut tx_bytes.as_slice()) {
 				log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
-				self.executed_extrinsics_count += 1;
 
 				if !self.api.execute_in_transaction(|api| {
 					match apply_transaction_wrapper::<Block, A>(
@@ -388,11 +391,14 @@ where
 					}
 				}) {
 					break
+				}else{
+					extrinsics.push(xt);
 				}
 			} else {
 				log::debug!(target: "block_builder", "couldnt deserialize tx from queue, ignoring it");
 			}
 		}
+		log::debug!(target: "block_builder", "BlockBuilder::pop_tx finished");
 	}
 
 	/// Create the inherents for the block.
