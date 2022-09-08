@@ -373,55 +373,59 @@ where
 
 		loop {
 			let current_block_size = *block_size;
-			let tx_bytes =
+			let execution_status =
 				self.api
-					.execute_in_transaction(|api| match self.api.pop_tx(&block_id).unwrap() {
-						Some(data) if (data.len() + current_block_size) <= max_block_size =>
-							TransactionOutcome::Commit(Some(data)),
-						Some(data) => {
-							log::info!(target: "block_builder", "fetching txs from storage queue would exceed block limit");
-							TransactionOutcome::Rollback(None)
-						},
-						_ => TransactionOutcome::Rollback(None),
-					});
-
-			if tx_bytes.is_none() {
-				break
-			}
-			let tx_bytes = tx_bytes.unwrap();
-
-			if let Ok(xt) = <Block as BlockT>::Extrinsic::decode(&mut tx_bytes.as_slice()) {
-				log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
-
-				if !self.api.execute_in_transaction(|api| {
-					match apply_transaction_wrapper::<Block, A>(
-						api,
-						block_id,
-						xt.clone(),
-						ExecutionContext::BlockConstruction,
-					) {
-						Ok(Ok(_)) => TransactionOutcome::Commit((true)),
-						Ok(Err(validity_err)) if validity_err.exhausted_resources() => {
-							// TODO distinguish between exhaust resources and other failures
-							log::debug!(target: "block_builder", "exhaust resources no room for other txs from queue");
-							TransactionOutcome::Rollback(false)
-						},
-						Ok(Err(validity_err)) => {
-							log::debug!(target: "block_builder", "enqueued tx execution {} failed '${}'", BlakeTwo256::hash(&xt.encode()), validity_err);
-							TransactionOutcome::Commit(true)
-						},
-						Err(_e) => {
-							log::debug!(target: "block_builder", "enqueued tx execution {} failed - unknwown execution problem", BlakeTwo256::hash(&xt.encode()));
-							TransactionOutcome::Commit(true)
+				.execute_in_transaction(|api| match self.api.pop_tx(&block_id).unwrap() {
+					Some(tx_bytes) if (tx_bytes.len() + current_block_size) <= max_block_size => {
+						if let Ok(xt) = <Block as BlockT>::Extrinsic::decode(&mut tx_bytes.as_slice()) {
+							log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
+							if !self.api.execute_in_transaction(|api| {
+								match apply_transaction_wrapper::<Block, A>(
+									api,
+									block_id,
+									xt.clone(),
+									ExecutionContext::BlockConstruction,
+								) {
+									_ if !timer() => {
+										log::debug!(target: "block_builder", "timer expired no room for other txs from queue");
+										TransactionOutcome::Commit(false)
+									},
+									Ok(Err(validity_err)) if validity_err.exhausted_resources() => {
+										// TODO distinguish between exhaust resources and other failures
+										log::debug!(target: "block_builder", "exhaust resources no room for other txs from queue");
+										TransactionOutcome::Rollback(false)
+									},
+									Ok(Ok(_)) => {TransactionOutcome::Commit(true)}
+									Ok(Err(validity_err)) => {
+										log::debug!(target: "block_builder", "enqueued tx execution {} failed '${}'", BlakeTwo256::hash(&xt.encode()), validity_err);
+										TransactionOutcome::Commit(true)
+									},
+									Err(_e) => {
+										log::debug!(target: "block_builder", "enqueued tx execution {} failed - unknwown execution problem", BlakeTwo256::hash(&xt.encode()));
+										TransactionOutcome::Commit(true)
+									}
+								}
+							}) {
+								TransactionOutcome::Rollback(false)
+							}else{
+								extrinsics.push(xt);
+								log::debug!(target: "block_builder", "fetched txs from storage queue");
+								TransactionOutcome::Rollback(true)
+							}
+						} else {
+							log::debug!(target: "block_builder", "couldnt deserialize tx from queue, ignoring it");
+							TransactionOutcome::Rollback(true)
 						}
-					}
-				}) {
-					break
-				}else{
-					extrinsics.push(xt);
-				}
-			} else {
-				log::debug!(target: "block_builder", "couldnt deserialize tx from queue, ignoring it");
+
+					},
+					Some(_) => {
+						log::info!(target: "block_builder", "fetching txs from storage queue would exceed block limit");
+						TransactionOutcome::Rollback(false)
+					},
+					None => TransactionOutcome::Rollback(false),
+				});
+			if !execution_status {
+				break
 			}
 		}
 		log::debug!(target: "block_builder", "BlockBuilder::pop_tx finished");
