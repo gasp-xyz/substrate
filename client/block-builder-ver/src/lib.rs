@@ -355,12 +355,15 @@ where
 	/// fetch previous block and apply it
 	///
 	/// consequence of delayed block execution
-	pub fn apply_previous_block_extrinsics(
+	pub fn apply_previous_block_extrinsics<F>(
 		&mut self,
 		seed: ShufflingSeed,
 		block_size: &mut usize,
 		max_block_size: usize,
-	) {
+		timer: F,
+	) where
+		F: Fn() -> bool,
+	{
 		let parent_hash = self.parent_hash;
 		let block_id = &self.block_id;
 		log::debug!(target: "block_builder", "BlockBuilder::store_seed");

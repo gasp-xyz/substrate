@@ -416,14 +416,20 @@ where
 		// one
 		let mut t2 =
 			futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
+		let mut storage_queue_timer = deadline.saturating_duration_since((self.now)()) / 16;
 		let mut block_size = block_builder
 			.estimate_block_size_without_extrinsics(self.include_proof_in_block_size_estimation);
+
+		let now2 = &self.now;
+		let is_expired =
+			|| deadline.saturating_duration_since(now2()) > time::Duration::from_secs(1);
 
 		let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
 		block_builder.apply_previous_block_extrinsics(
 			seed.clone(),
 			&mut block_size,
 			block_size_limit / 2, // txs from queue should not occupy more than half of the block
+			is_expired,
 		);
 
 		let mut pending_iterator = select! {
