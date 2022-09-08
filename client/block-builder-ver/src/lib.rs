@@ -355,7 +355,12 @@ where
 	/// fetch previous block and apply it
 	///
 	/// consequence of delayed block execution
-	pub fn apply_previous_block_extrinsics(&mut self, seed: ShufflingSeed) {
+	pub fn apply_previous_block_extrinsics(
+		&mut self,
+		seed: ShufflingSeed,
+		block_size: &mut usize,
+		max_block_size: usize,
+	) {
 		let parent_hash = self.parent_hash;
 		let block_id = &self.block_id;
 		log::debug!(target: "block_builder", "BlockBuilder::store_seed");
@@ -363,7 +368,25 @@ where
 		log::debug!(target: "block_builder", "BlockBuilder::pop_tx");
 		let extrinsics = &mut self.extrinsics;
 
-		while let Some(tx_bytes) = self.api.pop_tx(&block_id).unwrap() {
+		loop {
+			let current_block_size = *block_size;
+			let tx_bytes =
+				self.api
+					.execute_in_transaction(|api| match self.api.pop_tx(&block_id).unwrap() {
+						Some(data) if (data.len() + current_block_size) <= max_block_size =>
+							TransactionOutcome::Commit(Some(data)),
+						Some(data) => {
+							log::info!(target: "block_builder", "fetching txs from storage queue would exceed block limit");
+							TransactionOutcome::Rollback(None)
+						},
+						_ => TransactionOutcome::Rollback(None),
+					});
+
+			if tx_bytes.is_none() {
+				break
+			}
+			let tx_bytes = tx_bytes.unwrap();
+
 			if let Ok(xt) = <Block as BlockT>::Extrinsic::decode(&mut tx_bytes.as_slice()) {
 				log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
 
