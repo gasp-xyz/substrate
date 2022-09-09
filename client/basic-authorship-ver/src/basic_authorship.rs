@@ -394,7 +394,7 @@ where
 					warn!("❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e);
 				},
 				Ok(_) => {
-					trace!(target:"block_builder", "inherent EXECUTED & pushed into the block");
+					trace!(target:"block_builder", "inherent pushed into the block");
 				},
 			}
 		}
@@ -406,6 +406,8 @@ where
 		let left_micros: u64 = left.as_micros().saturated_into();
 		let soft_deadline =
 			now + time::Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros));
+		let soft_queue_deadline = now +
+			(time::Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros)) / 2);
 		let block_timer = time::Instant::now();
 		let mut skipped = 0;
 		let mut unqueue_invalid = Vec::new();
@@ -414,15 +416,13 @@ where
 		// NOTE reduce deadline by half ('/16' instead of '/8') as we want to avoid situation where
 		// fully filled previous block does not allow for any extrinsic to be included in following
 		// one
-		let mut t2 =
-			futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
-		let mut storage_queue_timer = deadline.saturating_duration_since((self.now)()) / 16;
+		let mut t2 = futures_timer::Delay::new(deadline.saturating_duration_since(now) / 8).fuse();
+
 		let mut block_size = block_builder
 			.estimate_block_size_without_extrinsics(self.include_proof_in_block_size_estimation);
 
-		let now2 = &self.now;
-		let is_expired =
-			|| deadline.saturating_duration_since(now2()) > time::Duration::from_secs(1);
+		let get_current_time = &self.now;
+		let is_expired = || get_current_time() > soft_queue_deadline;
 
 		let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
 		block_builder.apply_previous_block_extrinsics(

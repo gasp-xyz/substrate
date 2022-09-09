@@ -360,15 +360,13 @@ where
 		seed: ShufflingSeed,
 		block_size: &mut usize,
 		max_block_size: usize,
-		timer: F,
+		is_timer_expired: F,
 	) where
 		F: Fn() -> bool,
 	{
 		let parent_hash = self.parent_hash;
 		let block_id = &self.block_id;
-		log::debug!(target: "block_builder", "BlockBuilder::store_seed");
 		self.api.store_seed(&block_id, seed.seed).unwrap();
-		log::debug!(target: "block_builder", "BlockBuilder::pop_tx");
 		let extrinsics = &mut self.extrinsics;
 
 		loop {
@@ -379,14 +377,14 @@ where
 					Some(tx_bytes) if (tx_bytes.len() + current_block_size) <= max_block_size => {
 						if let Ok(xt) = <Block as BlockT>::Extrinsic::decode(&mut tx_bytes.as_slice()) {
 							log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
-							if !self.api.execute_in_transaction(|api| {
+							if !api.execute_in_transaction(|api| {
 								match apply_transaction_wrapper::<Block, A>(
 									api,
 									block_id,
 									xt.clone(),
 									ExecutionContext::BlockConstruction,
 								) {
-									_ if !timer() => {
+									_ if is_timer_expired() => {
 										log::debug!(target: "block_builder", "timer expired no room for other txs from queue");
 										TransactionOutcome::Commit(false)
 									},
@@ -397,11 +395,11 @@ where
 									},
 									Ok(Ok(_)) => {TransactionOutcome::Commit(true)}
 									Ok(Err(validity_err)) => {
-										log::debug!(target: "block_builder", "enqueued tx execution {} failed '${}'", BlakeTwo256::hash(&xt.encode()), validity_err);
+										log::warn!(target: "block_builder", "enqueued tx execution {} failed '${}'", BlakeTwo256::hash(&xt.encode()), validity_err);
 										TransactionOutcome::Commit(true)
 									},
 									Err(_e) => {
-										log::debug!(target: "block_builder", "enqueued tx execution {} failed - unknwown execution problem", BlakeTwo256::hash(&xt.encode()));
+										log::warn!(target: "block_builder", "enqueued tx execution {} failed - unknwown execution problem", BlakeTwo256::hash(&xt.encode()));
 										TransactionOutcome::Commit(true)
 									}
 								}
@@ -409,17 +407,17 @@ where
 								TransactionOutcome::Rollback(false)
 							}else{
 								extrinsics.push(xt);
-								log::debug!(target: "block_builder", "fetched txs from storage queue");
-								TransactionOutcome::Rollback(true)
+								log::trace!(target: "block_builder", "fetched txs from storage queue");
+								TransactionOutcome::Commit(true)
 							}
 						} else {
-							log::debug!(target: "block_builder", "couldnt deserialize tx from queue, ignoring it");
-							TransactionOutcome::Rollback(true)
+							log::warn!(target: "block_builder", "couldnt deserialize tx from queue, ignoring it");
+							TransactionOutcome::Commit(true)
 						}
 
 					},
 					Some(_) => {
-						log::info!(target: "block_builder", "fetching txs from storage queue would exceed block limit");
+						log::debug!(target: "block_builder", "fetching txs from storage queue would exceed block limit");
 						TransactionOutcome::Rollback(false)
 					},
 					None => TransactionOutcome::Rollback(false),
@@ -428,7 +426,6 @@ where
 				break
 			}
 		}
-		log::debug!(target: "block_builder", "BlockBuilder::pop_tx finished");
 	}
 
 	/// Create the inherents for the block.

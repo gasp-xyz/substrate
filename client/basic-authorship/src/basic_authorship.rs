@@ -387,6 +387,8 @@ where
 		let left_micros: u64 = left.as_micros().saturated_into();
 		let soft_deadline =
 			now + time::Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros));
+		let queue_soft_deadline = now +
+			time::Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros)) / 2;
 		let block_timer = time::Instant::now();
 		let mut skipped = 0;
 		let mut unqueue_invalid = Vec::new();
