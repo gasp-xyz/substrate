@@ -30,6 +30,9 @@ sp_api::decl_runtime_apis! {
 		fn pop_tx() -> Option<Vec<u8>>;
 
 		// creates inherent that injects new txs into storage queue
+		fn can_enqueue_txs() -> bool;
+
+		// creates inherent that injects new txs into storage queue
 		fn create_enqueue_txs_inherent(txs: Vec<Block::Extrinsic>) -> Block::Extrinsic;
 
 	}

@@ -84,7 +84,8 @@ use sp_version::RuntimeVersion;
 use codec::{Decode, Encode, EncodeLike, FullCodec, MaxEncodedLen};
 use frame_support::{
 	dispatch::{DispatchResult, DispatchResultWithPostInfo},
-	storage,
+	ensure, storage,
+	storage::bounded_vec::BoundedVec,
 	traits::{
 		ConstU32, Contains, EnsureOrigin, Get, HandleLifetime, OnKilledAccount, OnNewAccount,
 		OriginTrait, PalletInfo, SortedMembers, StoredMap,
@@ -131,6 +132,8 @@ pub use extensions::{
 pub use extensions::check_mortality::CheckMortality as CheckEra;
 pub use frame_support::dispatch::RawOrigin;
 pub use weights::WeightInfo;
+
+pub type StorageQueueLimit = frame_support::traits::ConstU32<5>;
 
 /// Compute the trie root of a list of extrinsics.
 ///
@@ -389,6 +392,7 @@ pub mod pallet {
 			txs: Vec<(Option<T::AccountId>, EncodedTx)>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
+			ensure!(txs.is_empty() || Self::can_enqueue_txs(), Error::<T>::StorageQueueFull);
 			let hashes =
 				txs.iter().map(|(_, data)| T::Hashing::hash(&data[..])).collect::<Vec<_>>();
 			Self::deposit_log(generic::DigestItem::Other(hashes.encode()));
@@ -551,6 +555,8 @@ pub mod pallet {
 		NonZeroRefCount,
 		/// The origin filter prevent the call to be dispatched.
 		CallFiltered,
+		/// the storage queue is empty and cannot accept any new txs
+		StorageQueueFull,
 	}
 
 	/// Exposed trait-generic origin type.
@@ -597,7 +603,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type StorageQueue<T: Config> = StorageValue<
 		_,
-		Vec<(T::BlockNumber, Option<u32>, Vec<(Option<T::AccountId>, EncodedTx)>)>,
+		BoundedVec<
+			(T::BlockNumber, Option<u32>, Vec<(Option<T::AccountId>, EncodedTx)>),
+			StorageQueueLimit,
+		>,
 		ValueQuery,
 	>;
 
@@ -1316,12 +1325,17 @@ impl<T: Config> Pallet<T> {
 		sp_runtime::runtime_logger::RuntimeLogger::init();
 		if !txs.is_empty() {
 			log::debug!( target: "runtime::ver", "storing {} txs at block {}", block_number, txs.len() );
-			<StorageQueue<T>>::mutate(|queue| {
-				queue.push((Self::block_number(), None, txs));
-			});
+			let mut queue = <StorageQueue<T>>::take();
+			queue.try_push((Self::block_number(), None, txs));
+			<StorageQueue<T>>::put(queue);
 		} else {
 			log::debug!( target: "runtime::ver", "no txs to store at block {}", block_number);
 		}
+	}
+
+	pub fn can_enqueue_txs() -> bool {
+		let queue = <StorageQueue<T>>::get();
+		<StorageQueueLimit as Get<u32>>::get() > queue.len() as u32
 	}
 
 	pub fn enqueued_txs_count(acc: &T::AccountId) -> usize {

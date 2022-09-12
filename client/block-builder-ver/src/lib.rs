@@ -239,33 +239,38 @@ where
 	) -> Result<BuiltBlock<Block, backend::StateBackendFor<B, Block>>, Error> {
 		let block_id = self.block_id;
 
-		let valid_txs = self.api.execute_in_transaction(|api| {
-			let next_header = api
-				.finalize_block_with_context(&block_id, ExecutionContext::BlockConstruction)
-				.unwrap();
-			// create dummy header just to condider N+1 block extrinsics like new session
-			let header = <<Block as BlockT>::Header as HeaderT>::new(
-				*next_header.number() + One::one(),
-				Default::default(),
-				Default::default(),
-				next_header.hash(),
-				Default::default(),
-			);
+		let valid_txs = if self.api.can_enqueue_txs(&block_id).unwrap() {
+			self.api.execute_in_transaction(|api| {
+				let next_header = api
+					.finalize_block_with_context(&block_id, ExecutionContext::BlockConstruction)
+					.unwrap();
+				// create dummy header just to condider N+1 block extrinsics like new session
+				let header = <<Block as BlockT>::Header as HeaderT>::new(
+					*next_header.number() + One::one(),
+					Default::default(),
+					Default::default(),
+					next_header.hash(),
+					Default::default(),
+				);
 
-			if api.is_storage_migration_scheduled(&self.block_id).unwrap() {
-				log::debug!(target:"block_builder", "storage migration scheduled - ignoring any txs");
-				TransactionOutcome::Rollback(vec![])
-			} else {
-				api.initialize_block_with_context(
-					&self.block_id,
-					ExecutionContext::BlockConstruction,
-					&header,
-				)
-				.unwrap();
-				let txs = call(&self.block_id, &api);
-				TransactionOutcome::Rollback(txs)
-			}
-		});
+				if api.is_storage_migration_scheduled(&self.block_id).unwrap() {
+					log::debug!(target:"block_builder", "storage migration scheduled - ignoring any txs");
+					TransactionOutcome::Rollback(vec![])
+				} else {
+					api.initialize_block_with_context(
+						&self.block_id,
+						ExecutionContext::BlockConstruction,
+						&header,
+					)
+					.unwrap();
+					let txs = call(&self.block_id, &api);
+					TransactionOutcome::Rollback(txs)
+				}
+			})
+		} else {
+			log::info!(target:"block_builder", "storage queue is full, no room for new txs");
+			vec![]
+		};
 
 		let valid_txs_count = valid_txs.len();
 		let store_txs_inherent = self

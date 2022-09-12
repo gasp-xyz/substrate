@@ -505,10 +505,11 @@ where
 			let is_extrinsic = tx.is_signed().unwrap();
 			if let Err(e) = Self::apply_extrinsic(tx) {
 				log::debug!(target: "runtime::ver", "executing extrinsic :{:?}", tx_hash);
-				if is_extrinsic &&
-					matches!(e, TransactionValidityError::Invalid(err) if !err.exhausted_resources())
+				// panic when:
+				// - tx is inherent
+				// - tx is extrinsic and error cause is exhaust resources
+				if !is_extrinsic || matches!(e, TransactionValidityError::Invalid(err) if !err.exhausted_resources())
 				{
-					// we allow for every error other than exhoust resources
 					let err: &'static str = e.into();
 					panic!("{}", err)
 				} else {
