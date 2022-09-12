@@ -442,7 +442,8 @@ where
 
 			let signature_batching = sp_runtime::SignatureBatching::start();
 
-			let enqueued_txs = <frame_system::Pallet<System>>::pop_txs((*block.header().count()).saturated_into())
+			let enqueued_txs_count = *block.header().count();
+			let enqueued_txs = <frame_system::Pallet<System>>::pop_txs(enqueued_txs_count.saturated_into())
 				.into_iter()
 				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
 
@@ -451,18 +452,11 @@ where
 			let curr_block_inherents_len = curr_block_inherents.clone().count();
 			let curr_block_extrinsics = curr_block_txs.iter().filter(|e| e.is_signed().unwrap());
 
-			// verify that txs in block matches shuffled on our own), that also prevents including
-			// txs by malicious collator !!!
-			assert_eq!(enqueued_txs, curr_block_extrinsics.cloned().collect::<Vec<_>>());
-			// TODO: !!! implement proper mechanism !!!
-			// let max = System::BlockWeights::get();
-			// let mut all: frame_system::ConsumedWeight = Default::default();
-			// for tx in curr_block_txs.clone() {
-			// 	let info = tx.clone().get_dispatch_info();
-			// 	all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
-			// 		.expect("sum of extrinsics should fit into single block");
-			// }
+			if curr_block_extrinsics.clone().count() > 0{
+				assert!(frame_system::StorageQueue::<System>::get().is_empty() || enqueued_txs_count > 0u32.into());
+			}
 
+			assert_eq!(enqueued_txs, curr_block_extrinsics.cloned().collect::<Vec<_>>());
 
 			let tx_to_be_executed = curr_block_inherents.clone()
 				.take(curr_block_inherents_len-1)
@@ -470,18 +464,28 @@ where
 				.chain(curr_block_inherents.skip(curr_block_inherents_len-1))
 				.cloned().collect::<Vec<_>>();
 
+			let max = System::BlockWeights::get();
+			let mut all: frame_system::ConsumedWeight = Default::default();
+			if let Some((nr, index, txs)) = frame_system::StorageQueue::<System>::get().last() {
+				// check if there were any txs added in current block
+				if *nr == frame_system::Pallet::<System>::block_number() {
+
+					for t in txs.iter()
+						.map(|(_who, tx_data)| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap())
+						.collect::<Vec<_>>()
+					{
+						let info = t.clone().get_dispatch_info();
+						all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
+							.expect("sum of extrinsics should fit into single block");
+
+					}
+
+				}
+			}
 
 			Self::execute_extrinsics_impl(tx_to_be_executed, *header.number());
 
 			// check weight of enqueued txs
-			if let Some((nr, index, txs)) = frame_system::StorageQueue::<System>::get().last() {
-				if *nr == frame_system::Pallet::<System>::block_number() {
-
-				.into_iter()
-				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
-
-				}
-			}
 
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
