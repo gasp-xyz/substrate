@@ -720,6 +720,10 @@ cfg_if! {
 				fn store_seed(_seed: sp_core::H256){
 				}
 
+				fn can_enqueue_txs() -> bool {
+					true
+				}
+
 
 				  fn create_enqueue_txs_inherent(_: Vec<<Block as BlockT>::Extrinsic>) -> <Block as BlockT>::Extrinsic{
 					  todo!()

@@ -1326,7 +1326,7 @@ impl<T: Config> Pallet<T> {
 		if !txs.is_empty() {
 			log::debug!( target: "runtime::ver", "storing {} txs at block {}", block_number, txs.len() );
 			let mut queue = <StorageQueue<T>>::take();
-			queue.try_push((Self::block_number(), None, txs));
+			queue.try_push((Self::block_number(), None, txs)).unwrap();
 			<StorageQueue<T>>::put(queue);
 		} else {
 			log::debug!( target: "runtime::ver", "no txs to store at block {}", block_number);
