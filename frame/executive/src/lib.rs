@@ -714,6 +714,7 @@ mod tests {
 		},
 		DispatchError,
 	};
+	use sp_std::str::FromStr;
 
 	use frame_support::{
 		assert_err, parameter_types,
@@ -1763,6 +1764,106 @@ mod tests {
 				},
 				pub_key_bytes,
 			);
+		});
+	}
+
+	fn calculate_next_seed<T: sp_keystore::SyncCryptoStore>(
+		keystore: &T,
+		public_key: &sr25519::Public,
+		prev_seed: Vec<u8>,
+	) -> ShufflingSeed {
+		let transcript = VRFTranscriptData {
+			label: b"shuffling_seed",
+			items: vec![("prev_seed", VRFTranscriptValue::Bytes(prev_seed))],
+		};
+		let signature =
+			SyncCryptoStore::sr25519_vrf_sign(keystore, SR25519, public_key, transcript.clone())
+				.unwrap()
+				.unwrap();
+
+		ShufflingSeed {
+			seed: signature.output.to_bytes().into(),
+			proof: signature.proof.to_bytes().into(),
+		}
+	}
+
+	#[test]
+	fn accept_block_that_fetches_txs_from_the_queue() {
+		new_test_ext(1).execute_with(|| {
+			let prev_seed = vec![0u8; 32];
+			let secret_uri = "//Alice";
+			let keystore = sp_keystore::testing::KeyStore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"3ed46f3dc020e22a8b44e83b26e74a24c18abb237d9a0a11866dca91679a390c"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 0,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			System::store_txs(vec![(Some(2), xt.clone().encode())]);
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"5daf0be3b765fd9ec95744d9702057072694d604e202cc6513b030aabc45e709"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"c8244f5759b5efd8760f96f5a679c78b2e8ea65c6095403f8f527c0619082694"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 1,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![xt.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			// System::store_txs(vec![(Some(2), xt.encode())]);
+			// System::set_block_number(1u32.into());
+			// System::set_block_seed(&dummy_seed);
 		});
 	}
 }
