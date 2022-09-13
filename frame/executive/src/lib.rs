@@ -459,9 +459,9 @@ where
 			assert_eq!(enqueued_txs, curr_block_extrinsics.cloned().collect::<Vec<_>>());
 
 			let tx_to_be_executed = curr_block_inherents.clone()
-				.take(curr_block_inherents_len-1)
+				.take(curr_block_inherents_len.checked_sub(1).unwrap_or(0))
 				.chain(enqueued_txs.iter())
-				.chain(curr_block_inherents.skip(curr_block_inherents_len-1))
+				.chain(curr_block_inherents.skip(curr_block_inherents_len.checked_sub(1).unwrap_or(0)))
 				.cloned().collect::<Vec<_>>();
 
 			let max = System::BlockWeights::get();
@@ -484,8 +484,6 @@ where
 			}
 
 			Self::execute_extrinsics_impl(tx_to_be_executed, *header.number());
-
-			// check weight of enqueued txs
 
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
@@ -1602,7 +1600,8 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Invalid inherent position for extrinsic at index 1")]
+	// System::enqueue_txs needs to be executed after extrinsics
+	//#[should_panic(expected = "Invalid inherent position for extrinsic at index 1")]
 	fn invalid_inherent_position_fail() {
 		let xt1 = TestXt::new(
 			Call::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
@@ -1746,7 +1745,7 @@ mod tests {
 						parent_hash: [69u8; 32].into(),
 						number: 1,
 						state_root: hex!(
-							"a37408819189bd873665cfb3b7ac54ec63b4eaa56077198fff637fe3aacb2461"
+							"3ed46f3dc020e22a8b44e83b26e74a24c18abb237d9a0a11866dca91679a390c"
 						)
 						.into(),
 						extrinsics_root: hex!(
