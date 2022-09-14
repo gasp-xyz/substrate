@@ -1338,6 +1338,10 @@ impl<T: Config> Pallet<T> {
 		<StorageQueueLimit as Get<u32>>::get() > queue.len() as u32
 	}
 
+	pub fn enqueued_blocks_count() -> u64 {
+		<StorageQueue<T>>::get().len() as u64
+	}
+
 	pub fn enqueued_txs_count(acc: &T::AccountId) -> usize {
 		let mut queue = <StorageQueue<T>>::get();
 		queue

@@ -442,18 +442,18 @@ where
 
 			let signature_batching = sp_runtime::SignatureBatching::start();
 
-			let enqueued_txs_count = *block.header().count();
-			let enqueued_txs = <frame_system::Pallet<System>>::pop_txs(enqueued_txs_count.saturated_into())
+			let poped_txs_count = *block.header().count();
+			let enqueued_txs = <frame_system::Pallet<System>>::pop_txs(poped_txs_count.saturated_into())
 				.into_iter()
 				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
 
 			let (header, curr_block_txs) = block.deconstruct();
-			let curr_block_inherents = curr_block_txs.iter().filter(|e| !e.is_signed().unwrap()); //.collect::<Vec<_>>();
+			let curr_block_inherents = curr_block_txs.iter().filter(|e| !e.is_signed().unwrap());
 			let curr_block_inherents_len = curr_block_inherents.clone().count();
 			let curr_block_extrinsics = curr_block_txs.iter().filter(|e| e.is_signed().unwrap());
 
 			if curr_block_extrinsics.clone().count() > 0{
-				assert!(frame_system::StorageQueue::<System>::get().is_empty() || enqueued_txs_count > 0u32.into());
+				assert!(frame_system::StorageQueue::<System>::get().is_empty() || poped_txs_count > 0u32.into());
 			}
 
 			assert_eq!(enqueued_txs, curr_block_extrinsics.cloned().collect::<Vec<_>>());
@@ -483,7 +483,11 @@ where
 				}
 			}
 
+			let enqueueq_blocks_count_before = <frame_system::Pallet<System>>::enqueued_blocks_count();
 			Self::execute_extrinsics_impl(tx_to_be_executed, *header.number());
+			let enqueueq_blocks_count_after = <frame_system::Pallet<System>>::enqueued_blocks_count();
+
+			assert!(poped_txs_count.saturated_into::<u64>() != 0u64 || enqueueq_blocks_count_before == enqueueq_blocks_count_after, "Collator didnt execute enqueued txs");
 
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
@@ -1931,6 +1935,7 @@ mod tests {
 	}
 
 	#[test]
+	#[should_panic(expected = "Collator didnt execute enqueued txs")]
 	fn rejects_block_that_enqueues_new_txs_but_doesnt_execute_any() {
 		new_test_ext(1).execute_with(|| {
 			let prev_seed = vec![0u8; 32];
@@ -1984,7 +1989,33 @@ mod tests {
 							System::block_seed().as_bytes().to_vec(),
 						),
 					},
-					extrinsics: vec![enqueue_txs_inherent],
+					extrinsics: vec![enqueue_txs_inherent.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"545b9b54abe19f999e0186186cce55a1615d78814c1571b0db1417570d8b8ca3"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"67c3f299c63ffbe544a83c0ca551f9edb1b1c81c0423e99238d020fc252b0159"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone()],
 				},
 				pub_key_bytes.clone(),
 			);
