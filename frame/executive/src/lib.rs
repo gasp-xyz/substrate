@@ -480,7 +480,9 @@ where
 						.map(|(_who, tx_data)| Block::Extrinsic::decode(& mut tx_data.as_slice()).expect("cannot deserialize tx that has been just enqueued"))
 						.collect::<Vec<_>>()
 					{
+
 						let info = t.clone().get_dispatch_info();
+						let utx = t.clone().check(&Default::default()).expect("incomming tx needs to be properly signed");
 						all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
 							.expect("sum of extrinsics should fit into single block");
 
@@ -1817,20 +1819,32 @@ mod tests {
 				.cloned()
 				.collect::<Vec<_>>();
 
+			let txs = vec![TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0))];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
 			Executive::execute_block_ver(
 				Block {
 					header: Header {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"3ed46f3dc020e22a8b44e83b26e74a24c18abb237d9a0a11866dca91679a390c"
+							"a8d7e7ea29cdd0d5d9a175a0680b43c5f80a8212c594f5d833c7c7d4f4d426b3"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+							"49a06b961d7cc4479e3a4ff859d16cd022ce10def840c2124695bea891c8a18c"
 						)
 						.into(),
-						digest: Digest { logs: vec![] },
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
 						seed: calculate_next_seed(
 							&keystore,
@@ -1838,12 +1852,10 @@ mod tests {
 							System::block_seed().as_bytes().to_vec(),
 						),
 					},
-					extrinsics: vec![],
+					extrinsics: vec![enqueue_txs_inherent],
 				},
 				pub_key_bytes.clone(),
 			);
-
-			System::store_txs(vec![(Some(2), xt.clone().encode())]);
 
 			Executive::execute_block_ver(
 				Block {
@@ -2037,10 +2049,6 @@ mod tests {
 				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
-			let txs = (0..10)
-				.map(|nonce| TestXt::new(call_transfer(2, 69), sign_extra(1, nonce, 0)))
-				.collect::<Vec<_>>();
-
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
 				.iter()
 				.cloned()
@@ -2075,6 +2083,82 @@ mod tests {
 						),
 					},
 					extrinsics: vec![enqueue_txs_inherent.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	fn do_not_panic_when_tx_poped_from_storage_queue_cannot_be_deserialized() {
+		new_test_ext(1).execute_with(|| {
+			let prev_seed = vec![0u8; 32];
+			let secret_uri = "//Alice";
+			let keystore = sp_keystore::testing::KeyStore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"3ed46f3dc020e22a8b44e83b26e74a24c18abb237d9a0a11866dca91679a390c"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 0,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			System::store_txs(vec![(Some(2), xt.clone().encode())]);
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"5daf0be3b765fd9ec95744d9702057072694d604e202cc6513b030aabc45e709"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"c8244f5759b5efd8760f96f5a679c78b2e8ea65c6095403f8f527c0619082694"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 1,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![xt.clone()],
 				},
 				pub_key_bytes.clone(),
 			);
