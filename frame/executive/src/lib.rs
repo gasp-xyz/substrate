@@ -445,7 +445,9 @@ where
 			let poped_txs_count = *block.header().count();
 			let enqueued_txs = <frame_system::Pallet<System>>::pop_txs(poped_txs_count.saturated_into())
 				.into_iter()
-				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap()).collect::<Vec<_>>();
+				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()))
+				.filter_map(|maybe_tx| maybe_tx.ok())
+				.collect::<Vec<_>>();
 
 			let (header, curr_block_txs) = block.deconstruct();
 			let curr_block_inherents = curr_block_txs.iter().filter(|e| !e.is_signed().unwrap());
@@ -725,6 +727,7 @@ mod tests {
 
 	use frame_support::{
 		assert_err, parameter_types,
+		storage::bounded_vec::BoundedVec,
 		traits::{
 			ConstU32, ConstU64, ConstU8, Currency, LockIdentifier, LockableCurrency,
 			WithdrawReasons,
@@ -2109,20 +2112,32 @@ mod tests {
 				.cloned()
 				.collect::<Vec<_>>();
 
+			let txs = vec![TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0))];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
 			Executive::execute_block_ver(
 				Block {
 					header: Header {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"3ed46f3dc020e22a8b44e83b26e74a24c18abb237d9a0a11866dca91679a390c"
+							"a8d7e7ea29cdd0d5d9a175a0680b43c5f80a8212c594f5d833c7c7d4f4d426b3"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+							"49a06b961d7cc4479e3a4ff859d16cd022ce10def840c2124695bea891c8a18c"
 						)
 						.into(),
-						digest: Digest { logs: vec![] },
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
 						seed: calculate_next_seed(
 							&keystore,
@@ -2130,24 +2145,28 @@ mod tests {
 							System::block_seed().as_bytes().to_vec(),
 						),
 					},
-					extrinsics: vec![],
+					extrinsics: vec![enqueue_txs_inherent],
 				},
 				pub_key_bytes.clone(),
 			);
 
-			System::store_txs(vec![(Some(2), xt.clone().encode())]);
+			/// inject some garbage instead of tx
+			let mut queue = frame_system::StorageQueue::<Runtime>::take();
+			queue.as_mut().last_mut().unwrap().2 = vec![(Some(2), b"not an extrinsic".to_vec())];
+			frame_system::StorageQueue::<Runtime>::put(queue);
 
+			/// tx is poped but not executed
 			Executive::execute_block_ver(
 				Block {
 					header: Header {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"5daf0be3b765fd9ec95744d9702057072694d604e202cc6513b030aabc45e709"
+							"4ab6e8a20156dd052a820850664e5cee199a89dad7729d3d0fd0fd44648a96d7"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"c8244f5759b5efd8760f96f5a679c78b2e8ea65c6095403f8f527c0619082694"
+							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
 						)
 						.into(),
 						digest: Digest { logs: vec![] },
@@ -2158,7 +2177,7 @@ mod tests {
 							System::block_seed().as_bytes().to_vec(),
 						),
 					},
-					extrinsics: vec![xt.clone()],
+					extrinsics: vec![],
 				},
 				pub_key_bytes.clone(),
 			);
