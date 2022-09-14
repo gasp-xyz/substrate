@@ -2183,4 +2183,98 @@ mod tests {
 			);
 		});
 	}
+
+	#[test]
+	fn do_not_panic_when_tx_poped_from_storage_queue_is_invalid() {
+		/// inject txs with wrong nonces
+		new_test_ext(1).execute_with(|| {
+			let prev_seed = vec![0u8; 32];
+			let secret_uri = "//Alice";
+			let keystore = sp_keystore::testing::KeyStore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0)),
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 2, 0)), /* <- this txs is
+				                                                         * invalide
+				                                                         * because of nonce that
+				                                                         * should be == 1 */
+			];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"9e9c73c1e3ea8b931b9c281f726f4b23496381a65379ffc7aa47c5cd3d2a9baf"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"b556518ac4690266bf7327301ed75f30bbefe4e8ef45920849e746c08b0a36e0"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			/// tx is poped fails on execution and doeasnt stuck the chain
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"731cbafcc8ed9d71d196ded36aca9fbdcaef925945d36de12f410a83e831a96b"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"ead5b1f0927906077db74d0a0621707e2b2ee93ce6145f83cee491801a010c14"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 2,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: txs,
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
 }
