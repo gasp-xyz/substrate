@@ -464,6 +464,12 @@ where
 				.chain(curr_block_inherents.skip(curr_block_inherents_len.checked_sub(1).unwrap_or(0)))
 				.cloned().collect::<Vec<_>>();
 
+
+			let enqueueq_blocks_count_before = <frame_system::Pallet<System>>::enqueued_blocks_count();
+			Self::execute_extrinsics_impl(tx_to_be_executed, *header.number());
+			let enqueueq_blocks_count_after = <frame_system::Pallet<System>>::enqueued_blocks_count();
+			assert!(enqueueq_blocks_count_before == 0 || (poped_txs_count.saturated_into::<u64>() != 0u64 || enqueueq_blocks_count_before == enqueueq_blocks_count_after), "Collator didnt execute enqueued txs");
+
 			let max = System::BlockWeights::get();
 			let mut all: frame_system::ConsumedWeight = Default::default();
 			if let Some((nr, index, txs)) = frame_system::StorageQueue::<System>::get().last() {
@@ -471,7 +477,7 @@ where
 				if *nr == frame_system::Pallet::<System>::block_number() {
 
 					for t in txs.iter()
-						.map(|(_who, tx_data)| Block::Extrinsic::decode(& mut tx_data.as_slice()).unwrap())
+						.map(|(_who, tx_data)| Block::Extrinsic::decode(& mut tx_data.as_slice()).expect("cannot deserialize tx that has been just enqueued"))
 						.collect::<Vec<_>>()
 					{
 						let info = t.clone().get_dispatch_info();
@@ -483,11 +489,6 @@ where
 				}
 			}
 
-			let enqueueq_blocks_count_before = <frame_system::Pallet<System>>::enqueued_blocks_count();
-			Self::execute_extrinsics_impl(tx_to_be_executed, *header.number());
-			let enqueueq_blocks_count_after = <frame_system::Pallet<System>>::enqueued_blocks_count();
-
-			assert!(poped_txs_count.saturated_into::<u64>() != 0u64 || enqueueq_blocks_count_before == enqueueq_blocks_count_after, "Collator didnt execute enqueued txs");
 
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
@@ -2005,6 +2006,64 @@ mod tests {
 						.into(),
 						extrinsics_root: hex!(
 							"67c3f299c63ffbe544a83c0ca551f9edb1b1c81c0423e99238d020fc252b0159"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "cannot deserialize tx that has been just enqueued")]
+	fn do_not_allow_to_accept_binary_blobs_that_does_not_deserialize_into_valid_tx() {
+		new_test_ext(1).execute_with(|| {
+			let prev_seed = vec![0u8; 32];
+			let secret_uri = "//Alice";
+			let keystore = sp_keystore::testing::KeyStore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let txs = (0..10)
+				.map(|nonce| TestXt::new(call_transfer(2, 69), sign_extra(1, nonce, 0)))
+				.collect::<Vec<_>>();
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let dummy_paylaod = b"not an extrinsic".to_vec();
+			let enqueue_txs_inherent =
+				TestXt::new(enqueue_txs(vec![(Some(2), dummy_paylaod.clone())]), None);
+
+			let tx_hashes_list =
+				vec![<Runtime as frame_system::Config>::Hashing::hash(&dummy_paylaod[..])];
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"f41b79a2cce94a67f604caf48cf7e76f33d4c0b71593a7ab7904e6f33c7db88d"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"8a9e640f76baf0990ddbec6f75a2e8ec3dafd3fde8dcc673bcc1469d9dfc9de2"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
