@@ -474,7 +474,7 @@ where
 
 			let max = System::BlockWeights::get();
 			let mut all: frame_system::ConsumedWeight = Default::default();
-			if let Some((nr, index, txs)) = frame_system::StorageQueue::<System>::get().last() {
+			if let Some((nr, _index, txs)) = frame_system::StorageQueue::<System>::get().last() {
 				// check if there were any txs added in current block
 				if *nr == frame_system::Pallet::<System>::block_number() {
 
@@ -484,7 +484,7 @@ where
 					{
 
 						let info = t.clone().get_dispatch_info();
-						let utx = t.clone().check(&Default::default()).expect("incomming tx needs to be properly signed");
+						t.clone().check(&Default::default()).expect("incomming tx needs to be properly signed");
 						all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
 							.expect("sum of extrinsics should fit into single block");
 
@@ -712,22 +712,8 @@ mod tests {
 
 	use hex_literal::hex;
 
-	use sp_core::{sr25519, testing::SR25519, Pair, ShufflingSeed, H256};
-	use sp_keystore::vrf::{VRFTranscriptData, VRFTranscriptValue};
-	use sp_runtime::{
-		generic::{DigestItem, Era},
-		testing::{BlockVer as Block, Digest, HeaderVer as Header},
-		traits::{BlakeTwo256, Block as BlockT, Header as HeaderT, IdentityLookup},
-		transaction_validity::{
-			InvalidTransaction, TransactionValidityError, UnknownTransaction, ValidTransaction,
-		},
-		DispatchError,
-	};
-	use sp_std::str::FromStr;
-
 	use frame_support::{
 		assert_err, parameter_types,
-		storage::bounded_vec::BoundedVec,
 		traits::{
 			ConstU32, ConstU64, ConstU8, Currency, LockIdentifier, LockableCurrency,
 			WithdrawReasons,
@@ -737,7 +723,20 @@ mod tests {
 	use frame_system::{Call as SystemCall, ChainContext, LastRuntimeUpgradeInfo};
 	use pallet_balances::Call as BalancesCall;
 	use pallet_transaction_payment::CurrencyAdapter;
-	use sp_keystore::SyncCryptoStore;
+	use sp_core::{sr25519, testing::SR25519, Pair, ShufflingSeed, H256};
+	use sp_keystore::{
+		vrf::{VRFTranscriptData, VRFTranscriptValue},
+		SyncCryptoStore,
+	};
+	use sp_runtime::{
+		generic::{DigestItem, Era},
+		testing::{BlockVer as Block, Digest, HeaderVer as Header},
+		traits::{BlakeTwo256, Block as BlockT, Header as HeaderT, IdentityLookup},
+		transaction_validity::{
+			InvalidTransaction, TransactionValidityError, UnknownTransaction, ValidTransaction,
+		},
+		DispatchError,
+	};
 
 	const TEST_KEY: &[u8] = &*b":test:key:";
 
@@ -1805,7 +1804,6 @@ mod tests {
 	#[test]
 	fn accept_block_that_fetches_txs_from_the_queue() {
 		new_test_ext(1).execute_with(|| {
-			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
 			let keystore = sp_keystore::testing::KeyStore::new();
 
@@ -1892,7 +1890,6 @@ mod tests {
 	#[should_panic(expected = "Transaction would exhaust the block limits")]
 	fn rejects_block_that_enqueues_too_many_transactions_to_storage_queue() {
 		new_test_ext(1).execute_with(|| {
-			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
 			let keystore = sp_keystore::testing::KeyStore::new();
 
@@ -1954,7 +1951,6 @@ mod tests {
 	#[should_panic(expected = "Collator didnt execute enqueued txs")]
 	fn rejects_block_that_enqueues_new_txs_but_doesnt_execute_any() {
 		new_test_ext(1).execute_with(|| {
-			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
 			let keystore = sp_keystore::testing::KeyStore::new();
 
@@ -2042,7 +2038,6 @@ mod tests {
 	#[should_panic(expected = "cannot deserialize tx that has been just enqueued")]
 	fn do_not_allow_to_accept_binary_blobs_that_does_not_deserialize_into_valid_tx() {
 		new_test_ext(1).execute_with(|| {
-			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
 			let keystore = sp_keystore::testing::KeyStore::new();
 
@@ -2095,7 +2090,6 @@ mod tests {
 	#[test]
 	fn do_not_panic_when_tx_poped_from_storage_queue_cannot_be_deserialized() {
 		new_test_ext(1).execute_with(|| {
-			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
 			let keystore = sp_keystore::testing::KeyStore::new();
 
@@ -2104,8 +2098,6 @@ mod tests {
 			keystore
 				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
-
-			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
 				.iter()
@@ -2150,12 +2142,12 @@ mod tests {
 				pub_key_bytes.clone(),
 			);
 
-			/// inject some garbage instead of tx
+			// inject some garbage instead of tx
 			let mut queue = frame_system::StorageQueue::<Runtime>::take();
 			queue.as_mut().last_mut().unwrap().2 = vec![(Some(2), b"not an extrinsic".to_vec())];
 			frame_system::StorageQueue::<Runtime>::put(queue);
 
-			/// tx is poped but not executed
+			// tx is poped but not executed
 			Executive::execute_block_ver(
 				Block {
 					header: Header {
@@ -2186,9 +2178,8 @@ mod tests {
 
 	#[test]
 	fn do_not_panic_when_tx_poped_from_storage_queue_is_invalid() {
-		/// inject txs with wrong nonces
+		// inject txs with wrong nonces
 		new_test_ext(1).execute_with(|| {
-			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
 			let keystore = sp_keystore::testing::KeyStore::new();
 
@@ -2197,8 +2188,6 @@ mod tests {
 			keystore
 				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
-
-			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
 				.iter()
@@ -2249,7 +2238,7 @@ mod tests {
 				pub_key_bytes.clone(),
 			);
 
-			/// tx is poped fails on execution and doeasnt stuck the chain
+			// tx is poped fails on execution and doeasnt stuck the chain
 			Executive::execute_block_ver(
 				Block {
 					header: Header {

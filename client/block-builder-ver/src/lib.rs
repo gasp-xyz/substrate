@@ -31,7 +31,7 @@ use codec::{Decode, Encode};
 use sp_api::{
 	ApiExt, ApiRef, Core, ProvideRuntimeApi, StorageChanges, StorageProof, TransactionOutcome,
 };
-use sp_blockchain::{ApplyExtrinsicFailed, Backend, Error};
+use sp_blockchain::{ApplyExtrinsicFailed, Error};
 use sp_core::ExecutionContext;
 use sp_runtime::{
 	generic::BlockId,
@@ -41,7 +41,6 @@ use sp_runtime::{
 };
 
 pub use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_blockchain::HeaderBackend;
 use ver_api::VerApi;
 
 use sc_client_api::backend;
@@ -288,6 +287,7 @@ where
 			ExecutionContext::BlockConstruction,
 		)
 		.unwrap()
+		.unwrap()
 		.unwrap();
 
 		// TODO get rid of collect
@@ -369,7 +369,6 @@ where
 	) where
 		F: Fn() -> bool,
 	{
-		let parent_hash = self.parent_hash;
 		let block_id = &self.block_id;
 		self.api.store_seed(&block_id, seed.seed).unwrap();
 		let extrinsics = &mut self.extrinsics;

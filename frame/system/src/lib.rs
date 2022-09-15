@@ -1343,7 +1343,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn enqueued_txs_count(acc: &T::AccountId) -> usize {
-		let mut queue = <StorageQueue<T>>::get();
+		let queue = <StorageQueue<T>>::get();
 		queue
 			.iter()
 			.map(|(_, _, txs)| txs)
@@ -1363,7 +1363,7 @@ impl<T: Config> Pallet<T> {
 			log::debug!( target: "runtime::ver", "popping {} txs from storage queue" , len);
 		}
 
-		for (i, (nr, index, txs)) in queue.iter_mut().enumerate() {
+		for (nr, index, txs) in queue.iter_mut() {
 			log::info!( target: "runtime::ver", "processing storage queue at block {}, found {} txs", nr.clone().saturated_into::<u32>(), txs.len());
 			log::debug!( target: "runtime::ver", "{} tx to be poped left", len);
 			if len == 0 {

@@ -48,7 +48,7 @@ use sp_runtime::{
 	create_runtime_str, impl_opaque_keys,
 	traits::{
 		BlakeTwo256, BlindCheckable, Block as BlockT, Extrinsic as ExtrinsicT, GetNodeBlockType,
-		GetRuntimeBlockType, Header as HeaderT, IdentityLookup, Verify,
+		GetRuntimeBlockType, IdentityLookup, Verify,
 	},
 	transaction_validity::{
 		InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
