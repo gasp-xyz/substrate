@@ -740,6 +740,45 @@ mod tests {
 		use super::*;
 
 		#[test]
+		fn mat_test() {
+			// given
+			let pool = pool();
+			let watcher = block_on(pool.submit_and_watch(
+				&BlockId::Number(0),
+				SOURCE,
+				uxt(Transfer {
+					from: AccountId::from_h256(H256::from_low_u64_be(1)),
+					to: AccountId::from_h256(H256::from_low_u64_be(2)),
+					amount: 5,
+					nonce: 1,
+				}),
+			))
+			.unwrap();
+			assert_eq!(pool.validated_pool().status().ready, 0);
+			assert_eq!(pool.validated_pool().status().future, 1);
+
+			let txs_from_block = vec![uxt(Transfer {
+				from: AccountId::from_h256(H256::from_low_u64_be(1)),
+				to: AccountId::from_h256(H256::from_low_u64_be(2)),
+				amount: 5,
+				nonce: 0,
+			})];
+
+			pool.prune_known(
+				&BlockId::Number(1),
+				&txs_from_block.into_iter().map(|tx| pool.hash_of(&tx)).collect::<Vec<_>>()[..],
+			);
+
+			// when
+			assert_eq!(pool.validated_pool().status().ready, 2);
+
+			// then
+			let mut stream = futures::executor::block_on_stream(watcher.into_stream());
+			assert_eq!(stream.next(), Some(TransactionStatus::Future));
+			assert_eq!(stream.next(), Some(TransactionStatus::Ready));
+		}
+
+		#[test]
 		fn should_trigger_ready_and_finalized() {
 			// given
 			let pool = pool();

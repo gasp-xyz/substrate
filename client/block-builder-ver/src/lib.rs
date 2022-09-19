@@ -243,6 +243,9 @@ where
 				let next_header = api
 					.finalize_block_with_context(&block_id, ExecutionContext::BlockConstruction)
 					.unwrap();
+
+				api.start_prevalidation(&block_id).unwrap();
+
 				// create dummy header just to condider N+1 block extrinsics like new session
 				let header = <<Block as BlockT>::Header as HeaderT>::new(
 					*next_header.number() + One::one(),

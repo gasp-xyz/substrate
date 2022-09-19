@@ -80,7 +80,8 @@ where
 		_len: usize,
 	) -> Result<(), TransactionValidityError> {
 		let mut account = crate::Account::<T>::get(who);
-		if self.0 != account.nonce {
+
+		if !crate::TxPrevalidation::<T>::get() && self.0 != account.nonce {
 			return Err(if self.0 < account.nonce {
 				InvalidTransaction::Stale
 			} else {

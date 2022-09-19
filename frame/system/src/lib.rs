@@ -599,7 +599,6 @@ pub mod pallet {
 	pub type BlockSeed<T: Config> = StorageValue<_, sp_core::H256, ValueQuery>;
 
 	/// Map of block numbers to block shuffling seeds
-	//TODO should use bounded vec
 	#[pallet::storage]
 	pub type StorageQueue<T: Config> = StorageValue<
 		_,
@@ -609,6 +608,10 @@ pub mod pallet {
 		>,
 		ValueQuery,
 	>;
+
+	/// Map of block numbers to block shuffling seeds
+	#[pallet::storage]
+	pub type TxPrevalidation<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	/// Extrinsics data for the current block (maps an extrinsic's index to its data).
 	#[pallet::storage]
@@ -1318,6 +1321,10 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 		<StorageQueue<T>>::put(queue);
+	}
+
+	pub fn set_prevalidation() {
+		TxPrevalidation::<T>::put(true);
 	}
 
 	pub fn store_txs(txs: Vec<(Option<T::AccountId>, EncodedTx)>) {

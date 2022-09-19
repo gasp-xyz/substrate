@@ -35,6 +35,8 @@ sp_api::decl_runtime_apis! {
 		// creates inherent that injects new txs into storage queue
 		fn create_enqueue_txs_inherent(txs: Vec<Block::Extrinsic>) -> Block::Extrinsic;
 
+		// creates inherent that injects new txs into storage queue
+		fn start_prevalidation();
 	}
 
 	pub trait VerNonceApi<Account> where
