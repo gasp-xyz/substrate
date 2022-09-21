@@ -393,13 +393,10 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			assert!(
-				matches!(
-					<StorageQueue<T>>::get().last(),
-					// Some((nr,_,_)) if nr.saturated_into::<u32>() != Self::block_number().saturated_into::<u32>()
-					Some((nr,_,_)) if *nr != Self::block_number()
-				),
-				"Txs can be stored only once per block"
+				!DidStoreTxs::<T>::get(),
+				"enqueue_txs inherent can only be called once per block"
 			);
+			DidStoreTxs::<T>::put(true);
 			ensure!(txs.is_empty() || Self::can_enqueue_txs(), Error::<T>::StorageQueueFull);
 			let hashes =
 				txs.iter().map(|(_, data)| T::Hashing::hash(&data[..])).collect::<Vec<_>>();
@@ -616,6 +613,10 @@ pub mod pallet {
 		>,
 		ValueQuery,
 	>;
+
+	/// Map of block numbers to block shuffling seeds
+	#[pallet::storage]
+	pub type DidStoreTxs<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	/// Map of block numbers to block shuffling seeds
 	#[pallet::storage]
@@ -1331,6 +1332,7 @@ impl<T: Config> Pallet<T> {
 		<StorageQueue<T>>::put(queue);
 	}
 
+	// part of block creation mechanims, used to ignore nonces when prevalidating txs
 	pub fn set_prevalidation() {
 		TxPrevalidation::<T>::put(true);
 	}
@@ -1461,6 +1463,7 @@ impl<T: Config> Pallet<T> {
 		);
 		ExecutionPhase::<T>::kill();
 		AllExtrinsicsLen::<T>::kill();
+		DidStoreTxs::<T>::kill();
 
 		// The following fields
 		//

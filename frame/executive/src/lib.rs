@@ -136,7 +136,7 @@ use sp_runtime::{
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
 	ApplyExtrinsicResult, SaturatedConversion,
 };
-use sp_std::{marker::PhantomData, prelude::*};
+use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
 
 pub type CheckedOf<E, C> = <E as Checkable<C>>::Checked;
 pub type CallOf<E, C> = <CheckedOf<E, C> as Applyable>::Call;
@@ -477,6 +477,9 @@ where
 			if let Some((nr, _index, txs)) = frame_system::StorageQueue::<System>::get().last() {
 				// check if there were any txs added in current block
 				if *nr == frame_system::Pallet::<System>::block_number() {
+
+					let unique_tx_count = txs.iter().collect::<BTreeSet<_>>().len();
+					assert!(unique_tx_count == txs.len(), "only unique txs can be passed into queue");
 
 					for t in txs.iter()
 						.map(|(_who, tx_data)| Block::Extrinsic::decode(& mut tx_data.as_slice()).expect("cannot deserialize tx that has been just enqueued"))
@@ -2261,6 +2264,130 @@ mod tests {
 						),
 					},
 					extrinsics: txs,
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "only unique txs can be passed into queue")]
+	fn reject_block_that_tries_to_enqueue_same_tx_mulitple_times() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = sp_keystore::testing::KeyStore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0)), /* duplicated tx should
+				                                                         * be rejected */
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0)),
+			];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"a8d7e7ea29cdd0d5d9a175a0680b43c5f80a8212c594f5d833c7c7d4f4d426b3"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"b17b5ebd3c0b536875c69fa58220b274cfdfdf06e2f374a0b5f5e1cc4386dba1"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "enqueue_txs inherent can only be called once per block")]
+	fn reject_block_that_enqueus_same_tx_multiple_times() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = sp_keystore::testing::KeyStore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0))];
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"a8d7e7ea29cdd0d5d9a175a0680b43c5f80a8212c594f5d833c7c7d4f4d426b3"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"9f907f07e03a93bbb696e4071f58237edc3 5a701d24e5a2155cf52a2b32a4ef3"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone(), enqueue_txs_inherent],
 				},
 				pub_key_bytes.clone(),
 			);
