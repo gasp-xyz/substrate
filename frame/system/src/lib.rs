@@ -392,6 +392,14 @@ pub mod pallet {
 			txs: Vec<(Option<T::AccountId>, EncodedTx)>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
+			assert!(
+				matches!(
+					<StorageQueue<T>>::get().last(),
+					// Some((nr,_,_)) if nr.saturated_into::<u32>() != Self::block_number().saturated_into::<u32>()
+					Some((nr,_,_)) if *nr != Self::block_number()
+				),
+				"Txs can be stored only once per block"
+			);
 			ensure!(txs.is_empty() || Self::can_enqueue_txs(), Error::<T>::StorageQueueFull);
 			let hashes =
 				txs.iter().map(|(_, data)| T::Hashing::hash(&data[..])).collect::<Vec<_>>();
