@@ -627,9 +627,11 @@ fn do_not_allow_for_storing_txs_when_queue_is_full() {
 			H256::from_str("0x0876d51dc2c109b2e9bca322e8706879d68984a8031a537d76d0b21693a3dbd0")
 				.unwrap();
 
-		for i in 1u32..6u32 {
+		for i in 1u32..<StorageQueueLimit as Get<u32>>::get() + 1 {
+			println!("iter");
 			assert!(System::can_enqueue_txs());
 			System::enqueue_txs(Origin::none(), dummy_txs.clone()).unwrap();
+			System::finalize();
 			System::set_block_number(i.into());
 			System::set_block_seed(&dummy_seed);
 		}
@@ -641,6 +643,7 @@ fn do_not_allow_for_storing_txs_when_queue_is_full() {
 
 		assert!(!System::pop_txs(1).is_empty());
 		assert!(System::can_enqueue_txs());
+		System::finalize();
 		System::enqueue_txs(Origin::none(), dummy_txs.clone()).unwrap();
 	});
 }

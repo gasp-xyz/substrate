@@ -133,7 +133,7 @@ pub use extensions::check_mortality::CheckMortality as CheckEra;
 pub use frame_support::dispatch::RawOrigin;
 pub use weights::WeightInfo;
 
-pub type StorageQueueLimit = frame_support::traits::ConstU32<5>;
+pub type StorageQueueLimit = frame_support::traits::ConstU32<2>;
 
 /// Compute the trie root of a list of extrinsics.
 ///
