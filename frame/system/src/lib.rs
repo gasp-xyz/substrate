@@ -1421,11 +1421,12 @@ impl<T: Config> Pallet<T> {
 			}
 
 			if let Some(id) = index {
-				log::debug!( target: "runtime::ver", "{} txs availabe at block {}", txs.len(), nr.clone().saturated_into::<u32>());
+				log::debug!( target: "runtime::ver", "{} txs availabe at block {}", txs.len() - (*id as usize), nr.clone().saturated_into::<u32>());
 				let count = sp_std::cmp::min(txs.len() - (*id) as usize, len) as usize;
 				let last_index = *id as usize + count;
 				if last_index == txs.len() {
 					fully_executed_blocks += 1;
+					log::debug!( target: "runtime::ver", "block {} has been fully executed", nr.clone().saturated_into::<u32>());
 				}
 				result.extend_from_slice(&txs[*id as usize..last_index]);
 				*id += count as u32;
@@ -1437,7 +1438,11 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		queue.drain(0..fully_executed_blocks);
+		if fully_executed_blocks > 0 {
+			let size_before = queue.len();
+			queue.drain(0..fully_executed_blocks);
+			log::debug!( target: "runtime::ver", "{} blocks to be removed from queue, len {} -> {}", fully_executed_blocks, size_before, queue.len());
+		}
 		<StorageQueue<T>>::put(queue);
 		result.iter().map(|(_, data)| data.clone()).collect()
 	}
