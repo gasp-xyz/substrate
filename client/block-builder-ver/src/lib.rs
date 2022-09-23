@@ -380,7 +380,7 @@ where
 			let current_block_size = *block_size;
 			let execution_status =
 				self.api
-				.execute_in_transaction(|api| match self.api.pop_tx(&block_id).unwrap() {
+				.execute_in_transaction(|api| match api.pop_tx(&block_id).unwrap() {
 					Some(tx_bytes) if (tx_bytes.len() + current_block_size) <= max_block_size => {
 						if let Ok(xt) = <Block as BlockT>::Extrinsic::decode(&mut tx_bytes.as_slice()) {
 							log::debug!(target: "block_builder", "executing extrinsic :{:?}", BlakeTwo256::hash(&xt.encode()));
