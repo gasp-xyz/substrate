@@ -9828,9 +9828,11 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "schnorrkel",
  "serde",
  "sp-core",
  "sp-inherents",
+ "sp-keystore",
  "sp-runtime",
  "sp-std",
 ]

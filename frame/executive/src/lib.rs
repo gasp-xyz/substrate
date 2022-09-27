@@ -705,6 +705,7 @@ mod tests {
 	use super::*;
 
 	use hex_literal::hex;
+	use sp_ver::calculate_next_seed_from_bytes;
 
 	use frame_support::{
 		assert_err, parameter_types,
@@ -1776,26 +1777,6 @@ mod tests {
 		});
 	}
 
-	fn calculate_next_seed<T: sp_keystore::SyncCryptoStore>(
-		keystore: &T,
-		public_key: &sr25519::Public,
-		prev_seed: Vec<u8>,
-	) -> ShufflingSeed {
-		let transcript = VRFTranscriptData {
-			label: b"shuffling_seed",
-			items: vec![("prev_seed", VRFTranscriptValue::Bytes(prev_seed))],
-		};
-		let signature =
-			SyncCryptoStore::sr25519_vrf_sign(keystore, SR25519, public_key, transcript.clone())
-				.unwrap()
-				.unwrap();
-
-		ShufflingSeed {
-			seed: signature.output.to_bytes().into(),
-			proof: signature.proof.to_bytes().into(),
-		}
-	}
-
 	#[test]
 	fn accept_block_that_fetches_txs_from_the_queue() {
 		new_test_ext(1).execute_with(|| {
@@ -1842,11 +1823,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent],
 				},
@@ -1868,11 +1850,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![] },
 						count: 1,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![xt.clone()],
 				},
@@ -1929,11 +1912,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent],
 				},
@@ -1990,11 +1974,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent.clone()],
 				},
@@ -2016,12 +2001,14 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
-					},
+						)
+						.unwrap(),
+					}
+					.unwrap(),
 					extrinsics: vec![enqueue_txs_inherent.clone()],
 				},
 				pub_key_bytes.clone(),
@@ -2069,11 +2056,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent.clone()],
 				},
@@ -2126,11 +2114,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent],
 				},
@@ -2158,11 +2147,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![] },
 						count: 1,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![],
 				},
@@ -2222,11 +2212,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent],
 				},
@@ -2249,11 +2240,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![] },
 						count: 2,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: txs,
 				},
@@ -2313,11 +2305,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent],
 				},
@@ -2373,11 +2366,12 @@ mod tests {
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 0,
-						seed: calculate_next_seed(
+						seed: calculate_next_seed_from_bytes(
 							&keystore,
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
-						),
+						)
+						.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent.clone(), enqueue_txs_inherent],
 				},

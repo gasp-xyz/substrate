@@ -559,7 +559,7 @@ async fn prune_known_txs_for_block<Block: BlockT, Api: graph::ChainApi<Block = B
 		.digest()
 		.logs()
 		.iter()
-		.find(|item| matches!(item, sp_runtime::DigestItem::Other(bytes)))
+		.find(|item| matches!(item, sp_runtime::DigestItem::Other(_)))
 	{
 		if let sp_runtime::DigestItem::Other(bytes) = digest {
 			let enqueued_hashes = Vec::<Block::Hash>::decode(&mut bytes.as_ref()).unwrap();
