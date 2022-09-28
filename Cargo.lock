@@ -2074,6 +2074,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_pcg 0.3.1",
  "sc-block-builder",
+ "sc-block-builder-ver",
  "sc-cli",
  "sc-client-api",
  "sc-client-db",
@@ -2094,9 +2095,11 @@ dependencies = [
  "sp-state-machine",
  "sp-storage",
  "sp-trie",
+ "sp-ver",
  "tempfile",
  "thiserror",
  "thousands",
+ "ver-api",
 ]
 
 [[package]]
@@ -2172,6 +2175,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-tracing",
+ "sp-ver",
  "sp-version",
 ]
 
@@ -11904,14 +11908,6 @@ dependencies = [
 ]
 
 [[patch.unused]]
-name = "sc-finality-grandpa-rpc"
-version = "0.10.0-dev"
-
-[[patch.unused]]
-name = "sc-finality-grandpa-rpc"
-version = "0.10.0-dev"
-
-[[patch.unused]]
 name = "orml-unknown-tokens"
 version = "0.4.1-dev"
 source = "git+https://github.com/mangata-finance//open-runtime-module-library?branch=mangata-dev#bf69c2b67b98a2b1ae3516a5771dabf0a5a10ae2"
@@ -11930,3 +11926,11 @@ source = "git+https://github.com/mangata-finance//open-runtime-module-library?br
 name = "orml-xtokens"
 version = "0.4.1-dev"
 source = "git+https://github.com/mangata-finance//open-runtime-module-library?branch=mangata-dev#bf69c2b67b98a2b1ae3516a5771dabf0a5a10ae2"
+
+[[patch.unused]]
+name = "sc-finality-grandpa-rpc"
+version = "0.10.0-dev"
+
+[[patch.unused]]
+name = "sc-finality-grandpa-rpc"
+version = "0.10.0-dev"
