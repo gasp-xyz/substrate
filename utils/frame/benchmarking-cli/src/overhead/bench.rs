@@ -267,8 +267,9 @@ where
 	fn build_block(&self, bench_type: BenchmarkType) -> Result<(Block, u64)> {
 		let mut builder = self.client.new_block(Default::default())?;
 		// Create and insert the inherents.
+
 		info!("creating inherents");
-		let (seed, inherents) = builder.create_inherents(self.inherent_data.clone())?;
+		let (seed, inherents) = builder.create_inherents(self.inherent_data.clone()).unwrap();
 		info!("pushing inherents");
 		for inherent in inherents {
 			builder.push(inherent)?;
