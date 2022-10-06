@@ -23,10 +23,14 @@ use sc_block_builder_ver::{
 	BlockBuilderApi as BlockBuilderApiVer, BlockBuilderProvider as BlockBuilderProviderVer,
 };
 use sc_cli::{CliConfiguration, ImportParams, Result, SharedParams};
-use sc_client_api::Backend as ClientBackend;
+use sc_client_api::{Backend as ClientBackend, StateBackend};
+use sc_consensus::BlockImport;
 use sc_service::Configuration;
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use sp_runtime::{traits::Block as BlockT, OpaqueExtrinsic};
+use sp_runtime::{
+	traits::{Block as BlockT, Header as HeaderT},
+	OpaqueExtrinsic,
+};
 use ver_api::VerApi;
 
 use clap::{Args, Parser};
@@ -101,7 +105,8 @@ impl OverheadCmd {
 		C: BlockBuilderProvider<BA, Block, C> + ProvideRuntimeApi<Block>,
 		C::Api: ApiExt<Block, StateBackend = BA::State> + BlockBuilderApi<Block>,
 	{
-		let bench = Benchmark::new(client, self.params.bench.clone(), inherent_data, ext_builder);
+		let mut bench =
+			Benchmark::new(client, self.params.bench.clone(), inherent_data, ext_builder);
 
 		// per-block execution overhead
 		{
@@ -121,23 +126,37 @@ impl OverheadCmd {
 		Ok(())
 	}
 
-	pub fn run_ver<Block, BA, C>(
+	pub fn run_ver<Block, BA, C, IQueue>(
 		&self,
 		cfg: Configuration,
 		client: Arc<C>,
+		import_queue: IQueue,
 		inherent_data: sp_inherents::InherentData,
 		ext_builder: Arc<dyn ExtrinsicBuilder>,
 	) -> Result<()>
 	where
 		Block: BlockT<Extrinsic = OpaqueExtrinsic>,
 		BA: ClientBackend<Block>,
-		C: BlockBuilderProviderVer<BA, Block, C> + ProvideRuntimeApi<Block>,
+		C: BlockBuilderProviderVer<BA, Block, C>,
+		C: ProvideRuntimeApi<Block>,
+		C: BlockImport<
+			Block,
+			Transaction = <BA::State as StateBackend<
+				<<Block as BlockT>::Header as HeaderT>::Hashing,
+			>>::Transaction,
+		>,
+		IQueue: sc_consensus::ImportQueue<Block>,
 		C::Api: ApiExt<Block, StateBackend = BA::State>,
 		C::Api: BlockBuilderApiVer<Block>,
 		C::Api: VerApi<Block>,
 	{
-		let bench =
-			BenchmarkVer::new(client, self.params.bench.clone(), inherent_data, ext_builder);
+		let mut bench = BenchmarkVer::new(
+			client,
+			import_queue,
+			self.params.bench.clone(),
+			inherent_data,
+			ext_builder,
+		);
 
 		// per-block execution overhead
 		{
@@ -147,12 +166,12 @@ impl OverheadCmd {
 			template.write(&self.params.weight.weight_path)?;
 		}
 		// per-extrinsic execution overhead
-		{
-			let stats = bench.bench(BenchmarkType::Extrinsic)?;
-			info!("Per-extrinsic execution overhead [ns]:\n{:?}", stats);
-			let template = TemplateData::new(BenchmarkType::Extrinsic, &cfg, &self.params, &stats)?;
-			template.write(&self.params.weight.weight_path)?;
-		}
+		// {
+		// 	let stats = bench.bench(BenchmarkType::Extrinsic)?;
+		// 	info!("Per-extrinsic execution overhead [ns]:\n{:?}", stats);
+		// 	let template = TemplateData::new(BenchmarkType::Extrinsic, &cfg, &self.params, &stats)?;
+		// 	template.write(&self.params.weight.weight_path)?;
+		// }
 
 		Ok(())
 	}
