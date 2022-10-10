@@ -32,23 +32,24 @@ use sp_api::{ApiExt, BlockId, Core, ProvideRuntimeApi};
 use sp_blockchain::{
 	ApplyExtrinsicFailed::Validity,
 	Error::{ApplyExtrinsicFailed, RuntimeApiError},
+	HeaderBackend,
 };
 use sp_consensus::BlockOrigin;
 use sp_consensus_aura::{digests::CompatibleDigestItem, sr25519::AuthoritySignature};
 use sp_core::{sr25519, testing::SR25519, Pair};
-use sp_inherents::InherentDataProvider;
+
 use sp_keystore::SyncCryptoStore;
 use sp_runtime::{
 	generic::Digest,
-	traits::{Block as BlockT, Header as HeaderT, Zero},
+	traits::{Block as BlockT, Header as HeaderT, One, Zero},
 	transaction_validity::{InvalidTransaction, TransactionValidityError},
 	DigestItem, OpaqueExtrinsic,
 };
 
 use clap::Args;
-use log::info;
+use log::{error, info};
 use serde::Serialize;
-use sp_ver::RandomSeedInherentDataProvider;
+
 use std::{marker::PhantomData, sync::Arc, time::Instant};
 use ver_api::VerApi;
 
@@ -101,10 +102,8 @@ pub(crate) struct BenchmarkVer<Block, BA, C, IQueue> {
 	client: Arc<C>,
 	import_queue: IQueue,
 	params: BenchmarkParams,
-	inherent_data: sp_inherents::InherentData,
+	inherent_data: (sp_inherents::InherentData, sp_inherents::InherentData),
 	ext_builder: Arc<dyn ExtrinsicBuilder>,
-	keystore: sp_keystore::testing::KeyStore,
-	key_pair: sr25519::Pair,
 	_p: PhantomData<(Block, BA)>,
 }
 
@@ -240,6 +239,7 @@ where
 			<<Block as BlockT>::Header as HeaderT>::Hashing,
 		>>::Transaction,
 	>,
+	C: HeaderBackend<Block>,
 	IQueue: sc_consensus::ImportQueue<Block>,
 	C::Api: ApiExt<Block, StateBackend = BA::State>,
 	C::Api: BlockBuilderApiVer<Block>,
@@ -250,34 +250,10 @@ where
 		client: Arc<C>,
 		import_queue: IQueue,
 		params: BenchmarkParams,
-		mut inherent_data: sp_inherents::InherentData,
+		inherent_data: (sp_inherents::InherentData, sp_inherents::InherentData),
 		ext_builder: Arc<dyn ExtrinsicBuilder>,
 	) -> Self {
-		let keystore = sp_keystore::testing::KeyStore::new();
-		let secret_uri = "//Alice";
-		let key_pair = sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
-		keystore
-			.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
-			.expect("Inserts unknown key");
-
-		let seed =
-			sp_ver::calculate_next_seed_from_bytes(&keystore, &key_pair.public(), vec![0u8; 32])
-				.unwrap();
-
-		RandomSeedInherentDataProvider(seed)
-			.provide_inherent_data(&mut inherent_data)
-			.unwrap();
-
-		Self {
-			client,
-			import_queue,
-			params,
-			inherent_data,
-			ext_builder,
-			keystore,
-			key_pair,
-			_p: PhantomData,
-		}
+		Self { client, import_queue, params, inherent_data, ext_builder, _p: PhantomData }
 	}
 
 	/// Run the specified benchmark.
@@ -291,26 +267,28 @@ where
 	///
 	/// Returns the block and the number of extrinsics in the block
 	/// that are not inherents.
-	fn build_block(&mut self, bench_type: BenchmarkType) -> Result<(Block, u64)> {
+	fn build_block(&mut self, _bench_type: BenchmarkType) -> Result<(Block, u64)> {
 		let mut digest = Digest::default();
-		let mut digest_item =
-			<DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(1.into());
+		let digest_item =
+			<DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(2.into());
 		digest.push(digest_item);
-		let mut builder = self.client.new_block(digest)?;
+		let mut builder = self.client.new_block(digest.clone())?;
 		// Create and insert the inherents.
 
 		info!("creating inherents");
-		let (seed, inherents) = builder.create_inherents(self.inherent_data.clone()).unwrap();
+		let (seed, inherents) = builder.create_inherents(self.inherent_data.0.clone()).unwrap();
 		info!("pushing inherents");
 		for inherent in inherents {
 			builder.push(inherent)?;
 		}
+
+		info!("applying previous block txs");
 		builder.apply_previous_block_extrinsics(seed.clone(), &mut 0, usize::MAX, || false);
 
 		// Return early if we just want a block with inherents and no additional extrinsics.
-		if bench_type == BenchmarkType::Block {
-			return Ok((builder.build_with_seed(seed, |_, _| Default::default())?.block, 0))
-		}
+		// if bench_type == BenchmarkType::Block {
+		// 	return Ok((builder.build_with_seed(seed, |_, _| Default::default())?.block, 0))
+		// }
 		let mut txs_count = 0u64;
 		let txs_count_ref = &mut txs_count;
 
@@ -327,7 +305,8 @@ where
 						valid_txs.push((None, remark));
 					},
 					Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => break,
-					Err(_) => {
+					Err(e) => {
+						error!("{:?}", e);
 						panic!("collecting txs failed");
 					},
 				}
@@ -341,25 +320,48 @@ where
 		})?;
 		info!("Extrinsics per block: {}", txs_count);
 
-		// let mut params = BlockImportParams::new(BlockOrigin::File, block.block.header().clone());
-		// params.state_action =
-		// 	StateAction::ApplyChanges(sc_consensus::StorageChanges::Changes(block.storage_changes));
-		// params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
-		// let mut c = &*self.client;
-		// futures::executor::block_on(c.import_block(params, Default::default()));
-		let incomming_block = sc_consensus::IncomingBlock {
-			hash: block.block.header().hash(),
-			header: Some(block.block.header().clone()),
-			body: Some(block.block.extrinsics().to_vec()),
-			indexed_body: None,
-			justifications: None,
-			origin: None,
-			allow_missing_state: true,
-			skip_execution: false,
-			import_existing: true,
-			state: None,
-		};
-		self.import_queue.import_blocks(BlockOrigin::Own, vec![incomming_block]);
+		let mut params = BlockImportParams::new(BlockOrigin::File, block.block.header().clone());
+		params.state_action =
+			StateAction::ApplyChanges(sc_consensus::StorageChanges::Changes(block.storage_changes));
+		params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+
+		info!("Importing 1st block");
+		let mut c = self.client.clone();
+		unsafe {
+			let mut_c = Arc::<C>::get_mut_unchecked(&mut c);
+			// mut_c.import_block(params, Default::default()).unwrap();
+			futures::executor::block_on(mut_c.import_block(params, Default::default()))
+				.expect("importing a block doesn't fail");
+		}
+
+		info!("best number: {} ", c.info().best_number);
+
+		let mut digest = Digest::default();
+		let digest_item =
+			<DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(3.into());
+		digest.push(digest_item);
+		let mut builder = self.client.new_block(digest)?;
+		let (seed, inherents) = builder.create_inherents(self.inherent_data.1.clone()).unwrap();
+		info!("pushing inherents");
+		for inherent in inherents {
+			builder.push(inherent)?;
+		}
+
+		builder.apply_previous_block_extrinsics(seed.clone(), &mut 0, usize::MAX, || false);
+
+		let block = builder.build_with_seed(seed, |_, _| {
+			(txs_count..(txs_count * 2))
+				.map(|nonce| {
+					let remark = self
+						.ext_builder
+						.remark(nonce as u32)
+						.expect("remark txs creation should not fail");
+					(None, remark)
+				})
+				.collect::<Vec<_>>()
+		})?;
+
+		info!("created block {:?}", block.block.clone());
 
 		Ok((block.block, txs_count))
 	}
@@ -375,7 +377,7 @@ where
 		if bench_type == BenchmarkType::Extrinsic && num_ext == 0 {
 			return Err("Cannot measure the extrinsic time of an empty block".into())
 		}
-		let genesis = BlockId::Number(Zero::zero());
+		let genesis = BlockId::Number(One::one());
 
 		info!("Running {} warmups...", self.params.warmup);
 		for _ in 0..self.params.warmup {

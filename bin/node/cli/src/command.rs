@@ -28,6 +28,7 @@ use node_primitives::Block;
 use node_runtime::RuntimeApi;
 use sc_cli::{ChainSpec, Result, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
+use sp_core::time::Duration;
 
 use std::sync::Arc;
 

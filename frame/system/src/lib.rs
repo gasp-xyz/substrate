@@ -397,7 +397,10 @@ pub mod pallet {
 		/// # <weight>
 		/// - `O(1)`
 		/// # </weight>
-		#[pallet::weight(100)]
+		#[pallet::weight((
+			0,
+			DispatchClass::Mandatory
+		))]
 		pub fn enqueue_txs(
 			origin: OriginFor<T>,
 			txs: Vec<(Option<T::AccountId>, EncodedTx)>,

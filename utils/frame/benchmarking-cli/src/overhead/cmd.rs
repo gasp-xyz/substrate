@@ -27,6 +27,7 @@ use sc_client_api::{Backend as ClientBackend, StateBackend};
 use sc_consensus::BlockImport;
 use sc_service::Configuration;
 use sp_api::{ApiExt, ProvideRuntimeApi};
+use sp_blockchain::HeaderBackend;
 use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT},
 	OpaqueExtrinsic,
@@ -131,7 +132,7 @@ impl OverheadCmd {
 		cfg: Configuration,
 		client: Arc<C>,
 		import_queue: IQueue,
-		inherent_data: sp_inherents::InherentData,
+		inherent_data: (sp_inherents::InherentData, sp_inherents::InherentData),
 		ext_builder: Arc<dyn ExtrinsicBuilder>,
 	) -> Result<()>
 	where
@@ -145,6 +146,7 @@ impl OverheadCmd {
 				<<Block as BlockT>::Header as HeaderT>::Hashing,
 			>>::Transaction,
 		>,
+		C: HeaderBackend<Block>,
 		IQueue: sc_consensus::ImportQueue<Block>,
 		C::Api: ApiExt<Block, StateBackend = BA::State>,
 		C::Api: BlockBuilderApiVer<Block>,
