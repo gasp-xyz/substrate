@@ -2,8 +2,10 @@
 
 use codec::{Decode, Encode};
 
-
-
+#[cfg(feature = "helpers")]
+use sp_core::sr25519;
+#[cfg(feature = "helpers")]
+use sp_core::testing::SR25519;
 use sp_core::ShufflingSeed;
 use sp_inherents::{InherentData, InherentIdentifier};
 #[cfg(feature = "helpers")]

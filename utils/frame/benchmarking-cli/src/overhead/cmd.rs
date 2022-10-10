@@ -127,11 +127,10 @@ impl OverheadCmd {
 		Ok(())
 	}
 
-	pub fn run_ver<Block, BA, C, IQueue>(
+	pub fn run_ver<Block, BA, C>(
 		&self,
 		cfg: Configuration,
 		client: Arc<C>,
-		import_queue: IQueue,
 		inherent_data: (sp_inherents::InherentData, sp_inherents::InherentData),
 		ext_builder: Arc<dyn ExtrinsicBuilder>,
 	) -> Result<()>
@@ -147,18 +146,12 @@ impl OverheadCmd {
 			>>::Transaction,
 		>,
 		C: HeaderBackend<Block>,
-		IQueue: sc_consensus::ImportQueue<Block>,
 		C::Api: ApiExt<Block, StateBackend = BA::State>,
 		C::Api: BlockBuilderApiVer<Block>,
 		C::Api: VerApi<Block>,
 	{
-		let mut bench = BenchmarkVer::new(
-			client,
-			import_queue,
-			self.params.bench.clone(),
-			inherent_data,
-			ext_builder,
-		);
+		let mut bench =
+			BenchmarkVer::new(client, self.params.bench.clone(), inherent_data, ext_builder);
 
 		// per-block execution overhead
 		{
@@ -168,12 +161,12 @@ impl OverheadCmd {
 			template.write(&self.params.weight.weight_path)?;
 		}
 		// per-extrinsic execution overhead
-		// {
-		// 	let stats = bench.bench(BenchmarkType::Extrinsic)?;
-		// 	info!("Per-extrinsic execution overhead [ns]:\n{:?}", stats);
-		// 	let template = TemplateData::new(BenchmarkType::Extrinsic, &cfg, &self.params, &stats)?;
-		// 	template.write(&self.params.weight.weight_path)?;
-		// }
+		{
+			let stats = bench.bench(BenchmarkType::Extrinsic)?;
+			info!("Per-extrinsic execution overhead [ns]:\n{:?}", stats);
+			let template = TemplateData::new(BenchmarkType::Extrinsic, &cfg, &self.params, &stats)?;
+			template.write(&self.params.weight.weight_path)?;
+		}
 
 		Ok(())
 	}

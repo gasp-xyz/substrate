@@ -92,15 +92,12 @@ pub(crate) struct Benchmark<Block, BA, C> {
 	params: BenchmarkParams,
 	inherent_data: sp_inherents::InherentData,
 	ext_builder: Arc<dyn ExtrinsicBuilder>,
-	keystore: sp_keystore::testing::KeyStore,
-	key_pair: sr25519::Pair,
 	_p: PhantomData<(Block, BA)>,
 }
 
 /// Holds all objects needed to run the *overhead* benchmarks.
-pub(crate) struct BenchmarkVer<Block, BA, C, IQueue> {
+pub(crate) struct BenchmarkVer<Block, BA, C> {
 	client: Arc<C>,
-	import_queue: IQueue,
 	params: BenchmarkParams,
 	inherent_data: (sp_inherents::InherentData, sp_inherents::InherentData),
 	ext_builder: Arc<dyn ExtrinsicBuilder>,
@@ -121,13 +118,7 @@ where
 		inherent_data: sp_inherents::InherentData,
 		ext_builder: Arc<dyn ExtrinsicBuilder>,
 	) -> Self {
-		let keystore = sp_keystore::testing::KeyStore::new();
-		let secret_uri = "//Alice";
-		let key_pair = sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
-		keystore
-			.insert_unknown(SR25519, secret_uri, key_pair.public().as_ref())
-			.expect("Inserts unknown key");
-		Self { client, params, inherent_data, ext_builder, keystore, key_pair, _p: PhantomData }
+		Self { client, params, inherent_data, ext_builder, _p: PhantomData }
 	}
 
 	/// Run the specified benchmark.
@@ -227,7 +218,7 @@ where
 	}
 }
 
-impl<Block, BA, C, IQueue> BenchmarkVer<Block, BA, C, IQueue>
+impl<Block, BA, C> BenchmarkVer<Block, BA, C>
 where
 	Block: BlockT<Extrinsic = OpaqueExtrinsic>,
 	BA: ClientBackend<Block>,
@@ -240,7 +231,6 @@ where
 		>>::Transaction,
 	>,
 	C: HeaderBackend<Block>,
-	IQueue: sc_consensus::ImportQueue<Block>,
 	C::Api: ApiExt<Block, StateBackend = BA::State>,
 	C::Api: BlockBuilderApiVer<Block>,
 	C::Api: VerApi<Block>,
@@ -248,12 +238,11 @@ where
 	/// Create a new [`Self`] from the arguments.
 	pub fn new(
 		client: Arc<C>,
-		import_queue: IQueue,
 		params: BenchmarkParams,
 		inherent_data: (sp_inherents::InherentData, sp_inherents::InherentData),
 		ext_builder: Arc<dyn ExtrinsicBuilder>,
 	) -> Self {
-		Self { client, import_queue, params, inherent_data, ext_builder, _p: PhantomData }
+		Self { client, params, inherent_data, ext_builder, _p: PhantomData }
 	}
 
 	/// Run the specified benchmark.
@@ -267,7 +256,7 @@ where
 	///
 	/// Returns the block and the number of extrinsics in the block
 	/// that are not inherents.
-	fn build_block(&mut self, _bench_type: BenchmarkType) -> Result<(Block, u64)> {
+	fn build_block(&mut self, bench_type: BenchmarkType) -> Result<(Block, u64)> {
 		let mut digest = Digest::default();
 		let digest_item =
 			<DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(2.into());
@@ -287,7 +276,7 @@ where
 
 		// Return early if we just want a block with inherents and no additional extrinsics.
 		// if bench_type == BenchmarkType::Block {
-		// 	return Ok((builder.build_with_seed(seed, |_, _| Default::default())?.block, 0))
+		// 	let block = builder.build_with_seed(seed, |_, _| Default::default())?;
 		// }
 		let mut txs_count = 0u64;
 		let txs_count_ref = &mut txs_count;
