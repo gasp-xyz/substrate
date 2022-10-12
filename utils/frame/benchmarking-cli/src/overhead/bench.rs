@@ -38,7 +38,6 @@ use sp_consensus::BlockOrigin;
 use sp_consensus_aura::{digests::CompatibleDigestItem, sr25519::AuthoritySignature};
 use sp_core::{sr25519, testing::SR25519, Pair};
 
-use sp_keystore::SyncCryptoStore;
 use sp_runtime::{
 	generic::Digest,
 	traits::{Block as BlockT, Header as HeaderT, One, Zero},
@@ -47,7 +46,7 @@ use sp_runtime::{
 };
 
 use clap::Args;
-use log::{error, info};
+use log::{debug, error, info};
 use serde::Serialize;
 
 use std::{marker::PhantomData, sync::Arc, time::Instant};
@@ -247,21 +246,60 @@ where
 
 	/// Run the specified benchmark.
 	pub fn bench(&mut self, bench_type: BenchmarkType) -> Result<Stats> {
-		let (block, num_ext) = self.build_block(bench_type)?;
-		let record = self.measure_block(&block, num_ext, bench_type)?;
-		Stats::new(&record)
+		let block = self.build_first_block()?;
+		let num_ext = block.block.extrinsics().len();
+
+		if let BenchmarkType::Block = bench_type {
+			let record = self.measure_block(
+				BlockId::Number(Zero::zero()),
+				&block.block.clone(),
+				num_ext,
+				bench_type,
+			)?;
+			Stats::new(&record)
+		} else {
+			self.import_block(block);
+			let block = self.build_second_block(num_ext)?;
+			let num_ext = block.block.extrinsics().len();
+			let record = self.measure_block(
+				BlockId::Number(One::one()),
+				&block.block.clone(),
+				num_ext,
+				bench_type,
+			)?;
+			Stats::new(&record)
+		}
 	}
 
-	/// Builds a block for the given benchmark type.
-	///
-	/// Returns the block and the number of extrinsics in the block
-	/// that are not inherents.
-	fn build_block(&mut self, bench_type: BenchmarkType) -> Result<(Block, u64)> {
+	fn create_digest(&self, aura_slot: u64) -> Digest {
 		let mut digest = Digest::default();
-		let digest_item =
-			<DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(2.into());
+		let digest_item = <DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(
+			aura_slot.into(),
+		);
 		digest.push(digest_item);
-		let mut builder = self.client.new_block(digest.clone())?;
+		digest
+	}
+
+	fn import_block(&mut self, block: sc_block_builder_ver::BuiltBlock<Block, BA::State>) {
+		info!("importing new block");
+		let mut params = BlockImportParams::new(BlockOrigin::File, block.block.header().clone());
+		params.state_action =
+			StateAction::ApplyChanges(sc_consensus::StorageChanges::Changes(block.storage_changes));
+		params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+
+		let mut c = self.client.clone();
+		unsafe {
+			let mut_c = Arc::<C>::get_mut_unchecked(&mut c);
+			futures::executor::block_on(mut_c.import_block(params, Default::default()))
+				.expect("importing a block doesn't fail");
+		}
+		info!("best number: {} ", c.info().best_number);
+	}
+
+	/// Builds a block that enqueues maximum possible amount of extrinsics
+	fn build_first_block(&mut self) -> Result<sc_block_builder_ver::BuiltBlock<Block, BA::State>> {
+		let digest = self.create_digest(1_u64);
+		let mut builder = self.client.new_block(digest)?;
 		// Create and insert the inherents.
 
 		info!("creating inherents");
@@ -274,10 +312,6 @@ where
 		info!("applying previous block txs");
 		builder.apply_previous_block_extrinsics(seed.clone(), &mut 0, usize::MAX, || false);
 
-		// Return early if we just want a block with inherents and no additional extrinsics.
-		// if bench_type == BenchmarkType::Block {
-		// 	let block = builder.build_with_seed(seed, |_, _| Default::default())?;
-		// }
 		let mut txs_count = 0u64;
 		let txs_count_ref = &mut txs_count;
 
@@ -308,27 +342,16 @@ where
 			valid_txs
 		})?;
 		info!("Extrinsics per block: {}", txs_count);
+		Ok(block)
+	}
 
-		let mut params = BlockImportParams::new(BlockOrigin::File, block.block.header().clone());
-		params.state_action =
-			StateAction::ApplyChanges(sc_consensus::StorageChanges::Changes(block.storage_changes));
-		params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+	fn build_second_block(
+		&mut self,
+		txs_count: usize,
+	) -> Result<sc_block_builder_ver::BuiltBlock<Block, BA::State>> {
+		// Return early if we just want a block with inherents and no additional extrinsics.
 
-		info!("Importing 1st block");
-		let mut c = self.client.clone();
-		unsafe {
-			let mut_c = Arc::<C>::get_mut_unchecked(&mut c);
-			// mut_c.import_block(params, Default::default()).unwrap();
-			futures::executor::block_on(mut_c.import_block(params, Default::default()))
-				.expect("importing a block doesn't fail");
-		}
-
-		info!("best number: {} ", c.info().best_number);
-
-		let mut digest = Digest::default();
-		let digest_item =
-			<DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(3.into());
-		digest.push(digest_item);
+		let digest = self.create_digest(3_u64);
 		let mut builder = self.client.new_block(digest)?;
 		let (seed, inherents) = builder.create_inherents(self.inherent_data.1.clone()).unwrap();
 		info!("pushing inherents");
@@ -350,29 +373,28 @@ where
 				.collect::<Vec<_>>()
 		})?;
 
-		info!("created block {:?}", block.block.clone());
-
-		Ok((block.block, txs_count))
+		debug!("created block {:?}", block.block.clone());
+		Ok(block)
 	}
 
 	/// Measures the time that it take to execute a block or an extrinsic.
 	fn measure_block(
 		&self,
+		block_id: BlockId<Block>,
 		block: &Block,
-		num_ext: u64,
+		num_ext: usize,
 		bench_type: BenchmarkType,
 	) -> Result<BenchRecord> {
 		let mut record = BenchRecord::new();
 		if bench_type == BenchmarkType::Extrinsic && num_ext == 0 {
 			return Err("Cannot measure the extrinsic time of an empty block".into())
 		}
-		let genesis = BlockId::Number(One::one());
 
 		info!("Running {} warmups...", self.params.warmup);
 		for _ in 0..self.params.warmup {
 			self.client
 				.runtime_api()
-				.execute_block(&genesis, block.clone())
+				.execute_block(&block_id, block.clone())
 				.map_err(|e| Error::Client(RuntimeApiError(e)))?;
 		}
 
@@ -385,7 +407,7 @@ where
 			let start = Instant::now();
 
 			runtime_api
-				.execute_block(&genesis, block)
+				.execute_block(&block_id, block)
 				.map_err(|e| Error::Client(RuntimeApiError(e)))?;
 
 			let elapsed = start.elapsed().as_nanos();

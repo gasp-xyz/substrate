@@ -1416,15 +1416,12 @@ impl<T: Config> Pallet<T> {
 		}
 
 		for (nr, index, txs) in queue.iter_mut() {
-			log::info!( target: "runtime::ver", "processing storage queue at block {}, found {} txs", nr.clone().saturated_into::<u32>(), txs.len());
-			log::debug!( target: "runtime::ver", "{} tx to be poped left", len);
 			if len == 0 {
-				log::debug!( target: "runtime::ver", "all scheduled txs executed");
 				break
 			}
 
 			if let Some(id) = index {
-				log::debug!( target: "runtime::ver", "{} txs availabe at block {}", txs.len() - (*id as usize), nr.clone().saturated_into::<u32>());
+				log::debug!( target: "runtime::ver", "block #{}, found {}/{}", nr.clone().saturated_into::<u32>(), txs.len() - (*id as usize), len);
 				let count = sp_std::cmp::min(txs.len() - (*id) as usize, len) as usize;
 				let last_index = *id as usize + count;
 				if last_index == txs.len() {
