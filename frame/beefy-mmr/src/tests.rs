@@ -17,7 +17,7 @@
 
 use std::vec;
 
-use beefy_primitives::{
+use sp_beefy::{
 	mmr::{BeefyNextAuthoritySet, MmrLeafVersion},
 	ValidatorSet,
 };

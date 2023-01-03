@@ -29,7 +29,7 @@ use crate::{
 	round::Rounds,
 	BeefyVoterLinks,
 };
-use beefy_primitives::{
+use sp_beefy::{
 	crypto::{AuthorityId, Signature},
 	Commitment, ConsensusLog, Payload, PayloadProvider, SignedCommitment, ValidatorSet,
 	VersionedFinalityProof, VoteMessage, BEEFY_ENGINE_ID,
@@ -970,7 +970,7 @@ pub(crate) mod tests {
 		},
 		BeefyRPCLinks, KnownPeers,
 	};
-	use beefy_primitives::{known_payloads, mmr::MmrRootProvider};
+	use sp_beefy::{known_payloads, mmr::MmrRootProvider};
 	use futures::{future::poll_fn, task::Poll};
 	use parking_lot::Mutex;
 	use sc_client_api::{Backend as BackendT, HeaderBackend};

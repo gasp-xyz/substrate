@@ -30,7 +30,7 @@ use crate::{
 	load_or_init_voter_state, wait_for_runtime_pallet, BeefyRPCLinks, BeefyVoterLinks, KnownPeers,
 	PersistedState,
 };
-use beefy_primitives::{
+use sp_beefy::{
 	crypto::{AuthorityId, Signature},
 	known_payloads,
 	mmr::MmrRootProvider,
@@ -475,7 +475,7 @@ fn wait_for_beefy_signed_commitments(
 			let expected = expected.next();
 			async move {
 				let signed_commitment = match versioned_finality_proof {
-					beefy_primitives::VersionedFinalityProof::V1(sc) => sc,
+					sp_beefy::VersionedFinalityProof::V1(sc) => sc,
 				};
 				let commitment_block_num = signed_commitment.commitment.block_number;
 				assert_eq!(expected, Some(commitment_block_num).as_ref());

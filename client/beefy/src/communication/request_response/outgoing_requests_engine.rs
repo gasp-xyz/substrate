@@ -18,7 +18,7 @@
 
 //! Generating request logic for request/response protocol for syncing BEEFY justifications.
 
-use beefy_primitives::{crypto::AuthorityId, ValidatorSet};
+use sp_beefy::{crypto::AuthorityId, ValidatorSet};
 use codec::Encode;
 use futures::channel::{oneshot, oneshot::Canceled};
 use log::{debug, warn};

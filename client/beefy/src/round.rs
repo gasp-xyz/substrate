@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use beefy_primitives::{
+use sp_beefy::{
 	crypto::{Public, Signature},
 	ValidatorSet, ValidatorSetId,
 };
@@ -174,7 +174,7 @@ mod tests {
 	use sc_network_test::Block;
 	use sp_core::H256;
 
-	use beefy_primitives::{crypto::Public, ValidatorSet};
+	use sp_beefy::{crypto::Public, ValidatorSet};
 
 	use super::{threshold, Block as BlockT, Hash, RoundTracker, Rounds};
 	use crate::keystore::tests::Keyring;

@@ -23,7 +23,7 @@ use sp_runtime::traits::Keccak256;
 
 use log::warn;
 
-use beefy_primitives::{
+use sp_beefy::{
 	crypto::{Public, Signature},
 	BeefyVerify, KEY_TYPE,
 };
@@ -117,7 +117,7 @@ pub mod tests {
 	use sp_core::{ecdsa, keccak_256, Pair};
 	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
-	use beefy_primitives::{crypto, KEY_TYPE};
+	use sp_beefy::{crypto, KEY_TYPE};
 
 	use super::BeefyKeystore;
 	use crate::error::Error;

@@ -16,7 +16,7 @@
 
 //! Helper for handling (i.e. answering) BEEFY justifications requests from a remote peer.
 
-use beefy_primitives::BEEFY_ENGINE_ID;
+use sp_beefy::BEEFY_ENGINE_ID;
 use codec::Decode;
 use futures::{
 	channel::{mpsc, oneshot},

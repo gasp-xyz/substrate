@@ -31,7 +31,7 @@ use crate::{
 	round::Rounds,
 	worker::PersistedState,
 };
-use beefy_primitives::{
+use sp_beefy::{
 	crypto::AuthorityId, BeefyApi, MmrRootHash, PayloadProvider, ValidatorSet, BEEFY_ENGINE_ID,
 	GENESIS_AUTHORITY_SET_ID,
 };

@@ -170,7 +170,7 @@ mod tests {
 		communication::notification::BeefyVersionedFinalityProofSender,
 		justification::BeefyVersionedFinalityProof,
 	};
-	use beefy_primitives::{known_payloads, Payload, SignedCommitment};
+	use sp_beefy::{known_payloads, Payload, SignedCommitment};
 	use codec::{Decode, Encode};
 	use jsonrpsee::{types::EmptyServerParams as EmptyParams, RpcModule};
 	use sp_runtime::traits::{BlakeTwo256, Hash};
@@ -269,7 +269,7 @@ mod tests {
 		let payload =
 			Payload::from_single_entry(known_payloads::MMR_ROOT_ID, "Hello World!".encode());
 		BeefyVersionedFinalityProof::<Block>::V1(SignedCommitment {
-			commitment: beefy_primitives::Commitment {
+			commitment: sp_beefy::Commitment {
 				payload,
 				block_number: 5,
 				validator_set_id: 0,
