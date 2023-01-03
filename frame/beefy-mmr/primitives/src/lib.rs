@@ -29,13 +29,13 @@
 //! Inner nodes are created by concatenating child hashes and hashing again. The implementation
 //! does not perform any sorting of the input data (leaves) nor when inner nodes are created.
 //!
-//! If the number of leaves is not even, last leave (hash of) is promoted to the upper layer.
+//! If the number of leaves is not even, last leaf (hash of) is promoted to the upper layer.
 
 pub use sp_runtime::traits::Keccak256;
 use sp_runtime::{app_crypto::sp_core, sp_std, traits::Hash as HashT};
 use sp_std::{vec, vec::Vec};
 
-use beefy_primitives::mmr::{BeefyAuthoritySet, BeefyNextAuthoritySet};
+use sp_beefy::mmr::{BeefyAuthoritySet, BeefyNextAuthoritySet};
 
 /// Construct a root hash of a Binary Merkle Tree created from given leaves.
 ///
