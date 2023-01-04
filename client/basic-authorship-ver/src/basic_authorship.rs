@@ -373,8 +373,7 @@ where
 			.get_data::<sp_core::ShufflingSeed>(&sp_ver::RANDOM_SEED_INHERENT_IDENTIFIER)
 		{
 			sp_ver::RandomSeedInherentDataProvider(Default::default())
-				.provide_inherent_data(&mut inherent_data)
-				.unwrap();
+				.provide_inherent_data(&mut inherent_data);
 		}
 
 		spawn_handle.spawn_blocking(

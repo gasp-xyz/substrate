@@ -174,20 +174,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e22d1f4b888c298a027c99dc9048015fac177587de20fc30232a057dfbe24a21"
 
 [[package]]
-name = "assert_cmd"
-version = "2.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa3d466004a8b4cb1bc34044240a2fd29d17607e2e3bd613eb44fd48e8100da3"
-dependencies = [
- "bstr 1.1.0",
- "doc-comment",
- "predicates",
- "predicates-core",
- "predicates-tree",
- "wait-timeout",
-]
-
-[[package]]
 name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -633,18 +619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bstr"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b45ea9b00a7b3f2988e9a65ad3917e62123c38dba709b666506207be96d1790b"
-dependencies = [
- "memchr",
- "once_cell",
- "regex-automata",
- "serde",
-]
-
-[[package]]
 name = "build-helper"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -796,20 +770,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chain-spec-builder"
-version = "2.0.0"
-dependencies = [
- "ansi_term",
- "clap 4.0.32",
- "node-cli",
- "rand 0.8.5",
- "sc-chain-spec",
- "sc-keystore",
- "sp-core 7.0.0",
- "sp-keystore 0.13.0",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -890,15 +850,6 @@ dependencies = [
  "once_cell",
  "strsim",
  "termcolor",
-]
-
-[[package]]
-name = "clap_complete"
-version = "4.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10861370d2ba66b0f5989f83ebf35db6421713fd92351790e7fdd6c36774c56b"
-dependencies = [
- "clap 4.0.32",
 ]
 
 [[package]]
@@ -1138,7 +1089,6 @@ dependencies = [
  "clap 2.34.0",
  "criterion-plot",
  "csv",
- "futures",
  "itertools 0.10.5",
  "lazy_static",
  "num-traits",
@@ -1151,7 +1101,6 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tinytemplate",
- "tokio",
  "walkdir",
 ]
 
@@ -1262,7 +1211,7 @@ version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22813a6dc45b335f9bade10bf7271dc477e81113e89eb251a0bc2a8a81c536e1"
 dependencies = [
- "bstr 0.2.17",
+ "bstr",
  "csv-core",
  "itoa 0.4.8",
  "ryu",
@@ -1538,12 +1487,6 @@ dependencies = [
  "byteorder",
  "quick-error",
 ]
-
-[[package]]
-name = "doc-comment"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "downcast"
@@ -2556,7 +2499,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a1e17342619edbc21a964c2afbeb6c820c6a2560032872f397bb97ea127bd0a"
 dependencies = [
  "aho-corasick",
- "bstr 0.2.17",
+ "bstr",
  "fnv",
  "log",
  "regex",
@@ -4365,19 +4308,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.23.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f3790c00a0150112de0f4cd161e3d7fc4b2d8a5542ffc35f099a2562aecb35c"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if",
- "libc",
- "memoffset 0.6.5",
-]
-
-[[package]]
-name = "nix"
 version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa52e972a9a719cecb6864fb88568781eb706bac2cd1d4f04a648542dbf78069"
@@ -4385,180 +4315,6 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
-]
-
-[[package]]
-name = "node-bench"
-version = "0.9.0-dev"
-dependencies = [
- "array-bytes",
- "clap 4.0.32",
- "derive_more",
- "fs_extra",
- "futures",
- "hash-db",
- "kitchensink-runtime",
- "kvdb",
- "kvdb-rocksdb",
- "lazy_static",
- "log",
- "node-primitives",
- "node-testing",
- "parity-db",
- "rand 0.7.3",
- "sc-basic-authorship",
- "sc-client-api",
- "sc-transaction-pool",
- "sc-transaction-pool-api",
- "serde",
- "serde_json",
- "sp-consensus",
- "sp-core 7.0.0",
- "sp-inherents",
- "sp-runtime 7.0.0",
- "sp-state-machine 0.13.0",
- "sp-timestamp",
- "sp-tracing 6.0.0",
- "sp-trie 7.0.0",
- "tempfile",
-]
-
-[[package]]
-name = "node-cli"
-version = "3.0.0-dev"
-dependencies = [
- "array-bytes",
- "assert_cmd",
- "clap 4.0.32",
- "clap_complete",
- "criterion",
- "frame-benchmarking-cli",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "futures",
- "jsonrpsee",
- "kitchensink-runtime",
- "log",
- "nix 0.23.2",
- "node-executor",
- "node-inspect",
- "node-primitives",
- "node-rpc",
- "pallet-asset-tx-payment",
- "pallet-assets",
- "pallet-balances",
- "pallet-im-online",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "platforms 2.0.0",
- "rand 0.8.5",
- "regex",
- "sc-authority-discovery",
- "sc-basic-authorship",
- "sc-block-builder",
- "sc-chain-spec",
- "sc-cli",
- "sc-client-api",
- "sc-client-db",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-consensus-epochs",
- "sc-consensus-slots",
- "sc-consensus-uncles",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-keystore",
- "sc-network",
- "sc-network-common",
- "sc-rpc",
- "sc-service",
- "sc-service-test",
- "sc-sync-state-rpc",
- "sc-sysinfo",
- "sc-telemetry",
- "sc-transaction-pool",
- "sc-transaction-pool-api",
- "serde",
- "serde_json",
- "soketto",
- "sp-api",
- "sp-authority-discovery",
- "sp-authorship",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core 7.0.0",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-io 7.0.0",
- "sp-keyring",
- "sp-keystore 0.13.0",
- "sp-runtime 7.0.0",
- "sp-timestamp",
- "sp-tracing 6.0.0",
- "sp-transaction-pool",
- "sp-transaction-storage-proof",
- "substrate-build-script-utils",
- "substrate-frame-cli",
- "substrate-rpc-client",
- "tempfile",
- "tokio",
- "tokio-util",
- "try-runtime-cli",
- "wait-timeout",
-]
-
-[[package]]
-name = "node-executor"
-version = "3.0.0-dev"
-dependencies = [
- "criterion",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "futures",
- "kitchensink-runtime",
- "node-primitives",
- "node-testing",
- "pallet-balances",
- "pallet-contracts",
- "pallet-im-online",
- "pallet-root-testing",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-treasury",
- "parity-scale-codec",
- "sc-executor",
- "scale-info",
- "sp-application-crypto 7.0.0",
- "sp-consensus-babe",
- "sp-core 7.0.0",
- "sp-externalities 0.13.0",
- "sp-keyring",
- "sp-keystore 0.13.0",
- "sp-runtime 7.0.0",
- "sp-state-machine 0.13.0",
- "sp-tracing 6.0.0",
- "sp-trie 7.0.0",
- "wat",
-]
-
-[[package]]
-name = "node-inspect"
-version = "0.9.0-dev"
-dependencies = [
- "clap 4.0.32",
- "parity-scale-codec",
- "sc-cli",
- "sc-client-api",
- "sc-executor",
- "sc-service",
- "sp-blockchain",
- "sp-core 7.0.0",
- "sp-runtime 7.0.0",
- "thiserror",
 ]
 
 [[package]]
@@ -4571,37 +4327,6 @@ dependencies = [
  "sp-application-crypto 7.0.0",
  "sp-core 7.0.0",
  "sp-runtime 7.0.0",
-]
-
-[[package]]
-name = "node-rpc"
-version = "3.0.0-dev"
-dependencies = [
- "jsonrpsee",
- "mmr-rpc",
- "node-primitives",
- "pallet-transaction-payment-rpc",
- "sc-chain-spec",
- "sc-client-api",
- "sc-consensus-babe",
- "sc-consensus-babe-rpc",
- "sc-consensus-epochs",
- "sc-finality-grandpa",
- "sc-finality-grandpa-rpc",
- "sc-rpc",
- "sc-rpc-api",
- "sc-rpc-spec-v2",
- "sc-sync-state-rpc",
- "sc-transaction-pool-api",
- "sp-api",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-keystore 0.13.0",
- "sp-runtime 7.0.0",
- "substrate-frame-rpc-system",
- "substrate-state-trie-migration-rpc",
 ]
 
 [[package]]
@@ -4647,41 +4372,6 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
-]
-
-[[package]]
-name = "node-testing"
-version = "3.0.0-dev"
-dependencies = [
- "frame-system",
- "fs_extra",
- "futures",
- "kitchensink-runtime",
- "log",
- "node-executor",
- "node-primitives",
- "pallet-asset-tx-payment",
- "pallet-assets",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "sc-block-builder",
- "sc-client-api",
- "sc-client-db",
- "sc-consensus",
- "sc-executor",
- "sc-service",
- "sp-api",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-core 7.0.0",
- "sp-inherents",
- "sp-io 7.0.0",
- "sp-keyring",
- "sp-runtime 7.0.0",
- "sp-timestamp",
- "substrate-test-client",
- "tempfile",
 ]
 
 [[package]]
@@ -7302,7 +6992,7 @@ dependencies = [
  "log",
  "netlink-packet-route",
  "netlink-proto",
- "nix 0.24.3",
+ "nix",
  "thiserror",
 ]
 
@@ -10544,14 +10234,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "subkey"
-version = "2.0.2"
-dependencies = [
- "clap 4.0.32",
- "sc-cli",
-]
-
-[[package]]
 name = "substrate-bip39"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10743,6 +10425,7 @@ dependencies = [
  "substrate-test-runtime-client",
  "substrate-wasm-builder",
  "trie-db",
+ "ver-api",
 ]
 
 [[package]]
@@ -11581,15 +11264,6 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
-
-[[package]]
-name = "wait-timeout"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "waker-fn"
