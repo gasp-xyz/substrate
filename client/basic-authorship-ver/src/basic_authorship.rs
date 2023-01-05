@@ -369,13 +369,6 @@ where
 		let (tx, rx) = oneshot::channel();
 		let spawn_handle = self.spawn_handle.clone();
 
-		if let Ok(None) = inherent_data
-			.get_data::<sp_core::ShufflingSeed>(&sp_ver::RANDOM_SEED_INHERENT_IDENTIFIER)
-		{
-			sp_ver::RandomSeedInherentDataProvider(Default::default())
-				.provide_inherent_data(&mut inherent_data);
-		}
-
 		spawn_handle.spawn_blocking(
 			"basic-authorship-proposer",
 			None,
@@ -425,9 +418,18 @@ where
 	) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
 	{
 		let propose_with_start = time::Instant::now();
+		let mut inherent_data = inherent_data.clone();
 
 		let mut block_builder =
 			self.client.new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?;
+
+
+		if let Ok(None) = inherent_data
+			.get_data::<sp_core::ShufflingSeed>(&sp_ver::RANDOM_SEED_INHERENT_IDENTIFIER)
+		{
+			sp_ver::RandomSeedInherentDataProvider(Default::default())
+				.provide_inherent_data(&mut inherent_data).await.unwrap();
+		}
 
 		let create_inherents_start = time::Instant::now();
 		let (seed, inherents) = block_builder.create_inherents(inherent_data.clone())?;
@@ -789,6 +791,7 @@ mod tests {
 
 		// when
 		let deadline = time::Duration::from_secs(3);
+
 		let block =
 			block_on(proposer.propose(Default::default(), Default::default(), deadline, None))
 				.map(|r| r.block)

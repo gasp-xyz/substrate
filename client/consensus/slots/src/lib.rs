@@ -392,7 +392,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let claim = self.claim_slot(&slot_info.chain_head, slot, &aux_data).await?;
 
 		let key = self.get_key(&claim);
-		inject_inherents(keystore, &key, &mut slot_info).await.ok();
+		inject_inherents(keystore, &key, &mut slot_info).await.ok()?;
 
 		if self.should_backoff(slot, &slot_info.chain_head) {
 			return None
