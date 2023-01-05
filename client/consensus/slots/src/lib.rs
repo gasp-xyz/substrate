@@ -40,14 +40,12 @@ use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_DEBUG, CONSENSUS_INFO, 
 use sp_arithmetic::traits::BaseArithmetic;
 use sp_consensus::{Proposal, Proposer, SelectChain, SyncOracle};
 use sp_consensus_slots::{Slot, SlotDuration};
-use sp_core::{crypto::key_types::AURA, sr25519, ShufflingSeed};
+use sp_core::{sr25519, ShufflingSeed};
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_keystore::{vrf, SyncCryptoStore, SyncCryptoStorePtr};
 use sp_runtime::{
-	generic::BlockId,
 	traits::{Block as BlockT, HashFor, Header as HeaderT},
 };
-use sp_timestamp::Timestamp;
 use sp_ver::RandomSeedInherentDataProvider;
 use std::{fmt::Debug, ops::Deref, time::{Duration, Instant}};
 
@@ -394,7 +392,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let claim = self.claim_slot(&slot_info.chain_head, slot, &aux_data).await?;
 
 		let key = self.get_key(&claim);
-		inject_inherents(keystore, &key, &mut slot_info);
+		inject_inherents(keystore, &key, &mut slot_info).await.ok();
 
 		if self.should_backoff(slot, &slot_info.chain_head) {
 			return None

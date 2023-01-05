@@ -379,6 +379,7 @@ pub mod pallet {
 		/// Persists list of encoded txs into the storage queue. There is an dedicated
 		/// check in [Executive](https://storage.googleapis.com/mangata-docs-node/frame_executive/struct.Executive.html) that verifies that passed binary data can be
 		/// decoded into extrinsics.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			0,
 			DispatchClass::Mandatory

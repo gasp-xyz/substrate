@@ -873,7 +873,7 @@ mod tests {
 	use frame_system::{Call as SystemCall, ChainContext, LastRuntimeUpgradeInfo};
 	use pallet_balances::Call as BalancesCall;
 	use pallet_transaction_payment::CurrencyAdapter;
-	use sp_core::{crypto::key_types::AURA};
+	use sp_core::crypto::key_types::AURA;
 	use sp_keystore::{
 		vrf::{VRFTranscriptData, VRFTranscriptValue},
 		SyncCryptoStore,
