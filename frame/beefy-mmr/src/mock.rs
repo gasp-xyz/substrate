@@ -17,7 +17,6 @@
 
 use std::vec;
 
-use sp_beefy::mmr::MmrLeafVersion;
 use codec::Encode;
 use frame_support::{
 	construct_runtime, parameter_types,
@@ -25,6 +24,7 @@ use frame_support::{
 	traits::{ConstU16, ConstU32, ConstU64, GenesisBuild},
 	BasicExternalities,
 };
+use sp_beefy::mmr::MmrLeafVersion;
 use sp_core::{Hasher, H256};
 use sp_runtime::{
 	app_crypto::ecdsa::Public,

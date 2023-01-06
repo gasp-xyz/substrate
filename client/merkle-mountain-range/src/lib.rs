@@ -43,12 +43,12 @@ mod offchain_mmr;
 pub mod test_utils;
 
 use crate::offchain_mmr::OffchainMmr;
-use sp_beefy::MmrRootHash;
 use futures::StreamExt;
 use log::{debug, error, trace, warn};
 use sc_client_api::{Backend, BlockchainEvents, FinalityNotifications};
 use sc_offchain::OffchainDb;
 use sp_api::ProvideRuntimeApi;
+use sp_beefy::MmrRootHash;
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_mmr_primitives::{utils, LeafIndex, MmrApi};
 use sp_runtime::{

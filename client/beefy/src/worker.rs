@@ -29,11 +29,6 @@ use crate::{
 	round::Rounds,
 	BeefyVoterLinks,
 };
-use sp_beefy::{
-	crypto::{AuthorityId, Signature},
-	Commitment, ConsensusLog, Payload, PayloadProvider, SignedCommitment, ValidatorSet,
-	VersionedFinalityProof, VoteMessage, BEEFY_ENGINE_ID,
-};
 use codec::{Codec, Decode, Encode};
 use futures::{stream::Fuse, FutureExt, StreamExt};
 use log::{debug, error, info, log_enabled, trace, warn};
@@ -43,6 +38,11 @@ use sc_network_gossip::GossipEngine;
 use sc_utils::notification::NotificationReceiver;
 use sp_api::BlockId;
 use sp_arithmetic::traits::{AtLeast32Bit, Saturating};
+use sp_beefy::{
+	crypto::{AuthorityId, Signature},
+	Commitment, ConsensusLog, Payload, PayloadProvider, SignedCommitment, ValidatorSet,
+	VersionedFinalityProof, VoteMessage, BEEFY_ENGINE_ID,
+};
 use sp_consensus::SyncOracle;
 use sp_runtime::{
 	generic::OpaqueDigestItemId,
@@ -970,13 +970,13 @@ pub(crate) mod tests {
 		},
 		BeefyRPCLinks, KnownPeers,
 	};
-	use sp_beefy::{known_payloads, mmr::MmrRootProvider};
 	use futures::{future::poll_fn, task::Poll};
 	use parking_lot::Mutex;
 	use sc_client_api::{Backend as BackendT, HeaderBackend};
 	use sc_network::NetworkService;
 	use sc_network_test::TestNetFactory;
 	use sp_api::HeaderT;
+	use sp_beefy::{known_payloads, mmr::MmrRootProvider};
 	use sp_blockchain::Backend as BlockchainBackendT;
 	use sp_runtime::traits::{One, Zero};
 	use substrate_test_runtime_client::{

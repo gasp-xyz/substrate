@@ -52,7 +52,7 @@
 //! `Executive` type declaration from the node template.
 //!
 //! ```
-//!
+//! 
 //! # use sp_runtime::generic;
 //! # use frame_executive as executive;
 //! # pub struct UncheckedExtrinsic {};
@@ -653,7 +653,7 @@ where
 						let info = t.clone().get_dispatch_info();
 						t.clone().check(&Default::default()).expect("incomming tx needs to be properly signed");
 						all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
-							.expect("sum of extrinsics should fit into single block");
+							.expect("Transaction would exhaust the block limits");
 
 					}
 
@@ -1225,13 +1225,13 @@ mod tests {
 		block_import_works_inner(
 			new_test_ext_v0(1),
 			array_bytes::hex_n_into_unchecked(
-				"216e61b2689d1243eb56d89c9084db48e50ebebc4871d758db131432c675d7c0",
+				"1e4e3699be2cec577f164e32b88f0f6f2124557be8eaab02cb751f4e561ac902",
 			),
 		);
 		block_import_works_inner(
 			new_test_ext(1),
 			array_bytes::hex_n_into_unchecked(
-				"4738b4c0aab02d6ddfa62a2a6831ccc975a9f978f7db8d7ea8e68eba8639530a",
+				"a5991b9204bb6ebb83e0da0abeef3b3a91ea7f7d1e547a62df6c62752fe9295d",
 			),
 		);
 	}
@@ -1916,7 +1916,7 @@ mod tests {
 						parent_hash: [69u8; 32].into(),
 						number: 1,
 						state_root: hex!(
-							"c1a5373581a3142b5107428aae1fd4e43259287c84db11f67a6525656c65f70c"
+							"7c3644ad634bf7d91f11984ebb149e389c92f99fef8ac181f7a9a43ee31d94e3"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -1974,11 +1974,11 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"c6bbd33a1161f1b0d719594304a81c6cc97a183a64a09e1903cb58ed6e247148"
+							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"49a06b961d7cc4479e3a4ff859d16cd022ce10def840c2124695bea891c8a18c"
+							"325ff57815f725eb40852ec4cd91526f8bdbbc1bd1c5d79e5a85d5d92704b0c9"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2001,7 +2001,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"30078f391818adda0ccfbbfb39abe63ed367041077a4d6c16187c5f412281aa7"
+							"9bd12b1263d49dd1d6cf7fdf0d1c8330db2c927bb2d55e77b725ccdcaaefcba5"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2063,11 +2063,11 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"347bf9906542825357b29ff5a31d6ef55fe25365cc46a105b2eec18e7d942c39"
+							"5bc40cfd524119a0f1ca2fbd9f0357806d0041f56e0de1750b1fe0011915ca4c"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"2297bffad2121ea12a31460894a8e5215f9c734afe0290c37225f8f36d16a8b5"
+							"6406786b8a8f590d77d8dc6126c16f7f1621efac35914834d95ec032562f5125"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2125,11 +2125,11 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"347bf9906542825357b29ff5a31d6ef55fe25365cc46a105b2eec18e7d942c39"
+							"5bc40cfd524119a0f1ca2fbd9f0357806d0041f56e0de1750b1fe0011915ca4c"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"67c3f299c63ffbe544a83c0ca551f9edb1b1c81c0423e99238d020fc252b0159"
+							"f380e937898ceef6feb3fbb47e4fb59d0be185c5f98be64baafa89c778d165c5"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2156,7 +2156,7 @@ mod tests {
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"67c3f299c63ffbe544a83c0ca551f9edb1b1c81c0423e99238d020fc252b0159"
+							"f380e937898ceef6feb3fbb47e4fb59d0be185c5f98be64baafa89c778d165c5"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2210,7 +2210,7 @@ mod tests {
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"8a9e640f76baf0990ddbec6f75a2e8ec3dafd3fde8dcc673bcc1469d9dfc9de2"
+							"47f1dc33bc8221e453f3d48e6cedb33aa8fec1bdba47da155096bf67f614fb82"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2264,11 +2264,11 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"c6bbd33a1161f1b0d719594304a81c6cc97a183a64a09e1903cb58ed6e247148"
+							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"49a06b961d7cc4479e3a4ff859d16cd022ce10def840c2124695bea891c8a18c"
+							"325ff57815f725eb40852ec4cd91526f8bdbbc1bd1c5d79e5a85d5d92704b0c9"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2297,7 +2297,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"cecc44cf1dbd96b64fc7817d3e421c0ef623ae3d49a872d9bca67b635455c0e8"
+							"9a3734f7495f8d2cdeaf71b8908040428848f8333274f9b871f522aa8838cc2e"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2362,11 +2362,11 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"1f1e089a56d87fd7d636593b3716d27be16cf596c5842ce364679127fdcc7315"
+							"19fd2bb5ce39066549e0f84e2fcabb715e3541e3c26ec8047554bbcd9c7885a4"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"b556518ac4690266bf7327301ed75f30bbefe4e8ef45920849e746c08b0a36e0"
+							"0bf3649935d974c08416350641382ffef980a58eace1f4b5b968705d206c7aae"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2390,7 +2390,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"a82520d8f5343f23813ef7de98efb35cfba8a5d9e5a6010aff93e607de61d588"
+							"15a8610abb49b6649f043cf75c2ff9ed4209fb5b657fd345d0e0fc9b8165ba72"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2453,11 +2453,11 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"c6bbd33a1161f1b0d719594304a81c6cc97a183a64a09e1903cb58ed6e247148"
+							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"b17b5ebd3c0b536875c69fa58220b274cfdfdf06e2f374a0b5f5e1cc4386dba1"
+							"2b8d0b6c617c1bc4003690d7e83d33cbe69d7237167e52c446bc690e188ce300"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2512,11 +2512,11 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"c6bbd33a1161f1b0d719594304a81c6cc97a183a64a09e1903cb58ed6e247148"
+							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
 						)
 						.into(),
 						extrinsics_root: hex!(
-							"9f907f07e03a93bbb696e4071f58237edc3 5a701d24e5a2155cf52a2b32a4ef3"
+							"c455a6cba17ea145cc03fa905ae969826a26780278ace184c61510e638901a85"
 						)
 						.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
@@ -2534,36 +2534,43 @@ mod tests {
 			);
 		});
 
-	#[should_panic(expected = "A call was labelled as mandatory, but resulted in an Error.")]
-	fn invalid_inherents_fail_block_execution() {
-		let xt1 =
-			TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), sign_extra(1, 0, 0));
-
-		new_test_ext(1).execute_with(|| {
-			Executive::execute_block(Block::new(
-				Header::new(
-					1,
-					H256::default(),
-					H256::default(),
-					[69u8; 32].into(),
-					Digest::default(),
-				),
-				vec![xt1],
-			));
-		});
-	}
-
-	// Inherents are created by the runtime and don't need to be validated.
-	#[test]
-	fn inherents_fail_validate_block() {
-		let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), None);
-
-		new_test_ext(1).execute_with(|| {
-			assert_eq!(
-				Executive::validate_transaction(TransactionSource::External, xt1, H256::random())
-					.unwrap_err(),
-				InvalidTransaction::MandatoryValidation.into()
+		#[should_panic(expected = "A call was labelled as mandatory, but resulted in an Error.")]
+		fn invalid_inherents_fail_block_execution() {
+			let xt1 = TestXt::new(
+				RuntimeCall::Custom(custom::Call::inherent_call {}),
+				sign_extra(1, 0, 0),
 			);
-		})
+
+			new_test_ext(1).execute_with(|| {
+				Executive::execute_block(Block::new(
+					Header::new(
+						1,
+						H256::default(),
+						H256::default(),
+						[69u8; 32].into(),
+						Digest::default(),
+					),
+					vec![xt1],
+				));
+			});
+		}
+
+		// Inherents are created by the runtime and don't need to be validated.
+		#[test]
+		fn inherents_fail_validate_block() {
+			let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), None);
+
+			new_test_ext(1).execute_with(|| {
+				assert_eq!(
+					Executive::validate_transaction(
+						TransactionSource::External,
+						xt1,
+						H256::random()
+					)
+					.unwrap_err(),
+					InvalidTransaction::MandatoryValidation.into()
+				);
+			})
+		}
 	}
-}}
+}

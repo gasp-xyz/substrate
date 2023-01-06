@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use codec::{Decode, Encode};
+use log::{debug, trace};
 use sp_beefy::{
 	crypto::{Public, Signature},
 	ValidatorSet, ValidatorSetId,
 };
-use codec::{Decode, Encode};
-use log::{debug, trace};
 use sp_runtime::traits::{Block, NumberFor};
 use std::{collections::BTreeMap, hash::Hash};
 

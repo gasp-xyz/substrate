@@ -36,11 +36,11 @@
 use sp_runtime::traits::{Convert, Member};
 use sp_std::prelude::*;
 
+use pallet_mmr::{LeafDataProvider, ParentNumberAndHash};
 use sp_beefy::{
 	mmr::{BeefyAuthoritySet, BeefyDataProvider, BeefyNextAuthoritySet, MmrLeaf, MmrLeafVersion},
 	ValidatorSet as BeefyValidatorSet,
 };
-use pallet_mmr::{LeafDataProvider, ParentNumberAndHash};
 
 use frame_support::{crypto::ecdsa::ECDSAExt, traits::Get};
 
@@ -62,9 +62,9 @@ where
 	fn on_new_root(root: &<T as pallet_mmr::Config>::Hash) {
 		let digest = sp_runtime::generic::DigestItem::Consensus(
 			sp_beefy::BEEFY_ENGINE_ID,
-			codec::Encode::encode(&sp_beefy::ConsensusLog::<
-				<T as pallet_beefy::Config>::BeefyId,
-			>::MmrRoot(*root)),
+			codec::Encode::encode(
+				&sp_beefy::ConsensusLog::<<T as pallet_beefy::Config>::BeefyId>::MmrRoot(*root),
+			),
 		);
 		<frame_system::Pallet<T>>::deposit_log(digest);
 	}

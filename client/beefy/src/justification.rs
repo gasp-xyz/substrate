@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::keystore::BeefyKeystore;
+use codec::{Decode, Encode};
 use sp_beefy::{
 	crypto::{AuthorityId, Signature},
 	ValidatorSet, VersionedFinalityProof,
 };
-use codec::{Decode, Encode};
 use sp_consensus::Error as ConsensusError;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
@@ -80,9 +80,7 @@ fn verify_with_validator_set<Block: BlockT>(
 
 #[cfg(test)]
 pub(crate) mod tests {
-	use sp_beefy::{
-		known_payloads, Commitment, Payload, SignedCommitment, VersionedFinalityProof,
-	};
+	use sp_beefy::{known_payloads, Commitment, Payload, SignedCommitment, VersionedFinalityProof};
 	use substrate_test_runtime_client::runtime::Block;
 
 	use super::*;

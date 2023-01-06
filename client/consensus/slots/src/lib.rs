@@ -43,11 +43,13 @@ use sp_consensus_slots::{Slot, SlotDuration};
 use sp_core::{sr25519, ShufflingSeed};
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_keystore::{vrf, SyncCryptoStore, SyncCryptoStorePtr};
-use sp_runtime::{
-	traits::{Block as BlockT, HashFor, Header as HeaderT},
-};
+use sp_runtime::traits::{Block as BlockT, HashFor, Header as HeaderT};
 use sp_ver::RandomSeedInherentDataProvider;
-use std::{fmt::Debug, ops::Deref, time::{Duration, Instant}};
+use std::{
+	fmt::Debug,
+	ops::Deref,
+	time::{Duration, Instant},
+};
 
 const LOG_TARGET: &str = "slots";
 
@@ -106,7 +108,8 @@ async fn inject_inherents<'a, B: BlockT>(
 			sp_consensus::Error::StateUnavailable(String::from(
 				"cannot inject RandomSeed inherent data",
 			))
-		}).await?;
+		})
+		.await?;
 
 	Ok(())
 }

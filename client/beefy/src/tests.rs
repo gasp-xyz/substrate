@@ -30,13 +30,6 @@ use crate::{
 	load_or_init_voter_state, wait_for_runtime_pallet, BeefyRPCLinks, BeefyVoterLinks, KnownPeers,
 	PersistedState,
 };
-use sp_beefy::{
-	crypto::{AuthorityId, Signature},
-	known_payloads,
-	mmr::MmrRootProvider,
-	BeefyApi, Commitment, ConsensusLog, MmrRootHash, Payload, SignedCommitment, ValidatorSet,
-	VersionedFinalityProof, BEEFY_ENGINE_ID, KEY_TYPE as BeefyKeyType,
-};
 use futures::{future, stream::FuturesUnordered, Future, StreamExt};
 use parking_lot::Mutex;
 use sc_client_api::{Backend as BackendT, BlockchainEvents, FinalityNotifications, HeaderBackend};
@@ -52,6 +45,13 @@ use sc_network_test::{
 use sc_utils::notification::NotificationReceiver;
 use serde::{Deserialize, Serialize};
 use sp_api::{ApiRef, ProvideRuntimeApi};
+use sp_beefy::{
+	crypto::{AuthorityId, Signature},
+	known_payloads,
+	mmr::MmrRootProvider,
+	BeefyApi, Commitment, ConsensusLog, MmrRootHash, Payload, SignedCommitment, ValidatorSet,
+	VersionedFinalityProof, BEEFY_ENGINE_ID, KEY_TYPE as BeefyKeyType,
+};
 use sp_consensus::BlockOrigin;
 use sp_core::H256;
 use sp_keystore::{testing::KeyStore as TestKeystore, SyncCryptoStore, SyncCryptoStorePtr};

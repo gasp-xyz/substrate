@@ -31,10 +31,6 @@ use crate::{
 	round::Rounds,
 	worker::PersistedState,
 };
-use sp_beefy::{
-	crypto::AuthorityId, BeefyApi, MmrRootHash, PayloadProvider, ValidatorSet, BEEFY_ENGINE_ID,
-	GENESIS_AUTHORITY_SET_ID,
-};
 use futures::{stream::Fuse, StreamExt};
 use log::{debug, error, info};
 use parking_lot::Mutex;
@@ -45,6 +41,10 @@ use sc_network::ProtocolName;
 use sc_network_common::service::NetworkRequest;
 use sc_network_gossip::{GossipEngine, Network as GossipNetwork};
 use sp_api::{HeaderT, NumberFor, ProvideRuntimeApi};
+use sp_beefy::{
+	crypto::AuthorityId, BeefyApi, MmrRootHash, PayloadProvider, ValidatorSet, BEEFY_ENGINE_ID,
+	GENESIS_AUTHORITY_SET_ID,
+};
 use sp_blockchain::{
 	Backend as BlockchainBackend, Error as ClientError, HeaderBackend, Result as ClientResult,
 };

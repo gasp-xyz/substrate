@@ -423,12 +423,13 @@ where
 		let mut block_builder =
 			self.client.new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?;
 
-
 		if let Ok(None) = inherent_data
 			.get_data::<sp_core::ShufflingSeed>(&sp_ver::RANDOM_SEED_INHERENT_IDENTIFIER)
 		{
 			sp_ver::RandomSeedInherentDataProvider(Default::default())
-				.provide_inherent_data(&mut inherent_data).await.unwrap();
+				.provide_inherent_data(&mut inherent_data)
+				.await
+				.unwrap();
 		}
 
 		let create_inherents_start = time::Instant::now();
