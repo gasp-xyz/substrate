@@ -1617,7 +1617,7 @@ pub(crate) mod remote_tests {
 		weights::Weight,
 	};
 	use frame_system::Pallet as System;
-	use remote_externalities::Mode;
+	use frame_remote_externalities::Mode;
 	use sp_core::H256;
 	use sp_runtime::{
 		traits::{Block as BlockT, HashFor, Header as _, One, Zero},
@@ -1654,7 +1654,7 @@ pub(crate) mod remote_tests {
 		Block: BlockT<Hash = H256> + DeserializeOwned,
 		Block::Header: serde::de::DeserializeOwned,
 	{
-		let mut ext = remote_externalities::Builder::<Block>::new()
+		let mut ext = frame_remote_externalities::Builder::<Block>::new()
 			.mode(mode)
 			.overwrite_state_version(sp_core::storage::StateVersion::V0)
 			.build()
@@ -1746,7 +1746,7 @@ mod remote_tests_local {
 		remote_tests::run_with_limits,
 		*,
 	};
-	use remote_externalities::{Mode, OfflineConfig, OnlineConfig, SnapshotConfig};
+	use frame_remote_externalities::{Mode, OfflineConfig, OnlineConfig, SnapshotConfig};
 	use sp_runtime::traits::Bounded;
 	use std::env::var as env_var;
 

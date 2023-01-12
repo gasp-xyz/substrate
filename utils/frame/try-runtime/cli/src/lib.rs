@@ -133,7 +133,7 @@
 //! given the right flag:
 //!
 //! ```ignore
-//! 
+//!
 //! #[cfg(feature = try-runtime)]
 //! fn pre_upgrade() -> Result<Vec<u8>, &'static str> {}
 //!
@@ -359,7 +359,7 @@
 #![cfg(feature = "try-runtime")]
 
 use parity_scale_codec::Decode;
-use remote_externalities::{
+use frame_remote_externalities::{
 	Builder, Mode, OfflineConfig, OnlineConfig, RemoteExternalities, SnapshotConfig,
 	TestExternalities,
 };
@@ -593,7 +593,7 @@ pub enum State {
 }
 
 impl State {
-	/// Create the [`remote_externalities::RemoteExternalities`] using [`remote-externalities`] from
+	/// Create the [`frame_remote_externalities::RemoteExternalities`] using [`remote-externalities`] from
 	/// self.
 	///
 	/// This will override the code as it sees fit based on [`SharedParams::Runtime`]. It will also

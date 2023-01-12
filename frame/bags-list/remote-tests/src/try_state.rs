@@ -21,7 +21,7 @@ use frame_support::{
 	storage::generator::StorageMap,
 	traits::{Get, PalletInfoAccess},
 };
-use remote_externalities::{Builder, Mode, OnlineConfig};
+use frame_remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 
 /// Execute the sanity check of the bags-list.
