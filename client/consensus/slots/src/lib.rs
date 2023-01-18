@@ -41,7 +41,7 @@ use sp_arithmetic::traits::BaseArithmetic;
 use sp_consensus::{Proposal, Proposer, SelectChain, SyncOracle};
 use sp_consensus_slots::{Slot, SlotDuration};
 use sp_core::{sr25519, ShufflingSeed};
-use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
+use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
 use sp_keystore::{vrf, SyncCryptoStore, SyncCryptoStorePtr};
 use sp_runtime::traits::{Block as BlockT, HashFor, Header as HeaderT};
 use sp_ver::RandomSeedInherentDataProvider;
@@ -94,16 +94,16 @@ fn create_shuffling_seed_input_data<'a>(prev_seed: &'a ShufflingSeed) -> vrf::VR
 async fn inject_inherents<'a, B: BlockT>(
 	keystore: SyncCryptoStorePtr,
 	public: &'a sr25519::Public,
-	slot_info: &'a mut SlotInfo<B>,
+	slot_info: &'a SlotInfo<B>,
+	in_data: &'a mut InherentData
 ) -> Result<(), sp_consensus::Error> {
 	let prev_seed = slot_info.chain_head.seed();
-	let mut inherited_data = slot_info.create_inherent_data.create_inherent_data().await?;
 
 	let seed = sp_ver::calculate_next_seed::<dyn SyncCryptoStore>(&(*keystore), public, prev_seed)
 		.ok_or(sp_consensus::Error::StateUnavailable(String::from("signing seed failure")))?;
 
 	RandomSeedInherentDataProvider(seed)
-		.provide_inherent_data(&mut inherited_data)
+		.provide_inherent_data(in_data)
 		.map_err(|_| {
 			sp_consensus::Error::StateUnavailable(String::from(
 				"cannot inject RandomSeed inherent data",
@@ -240,8 +240,13 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let slot = slot_info.slot;
 		let telemetry = self.telemetry();
 		let log_target = self.logging_target();
+		let keystore = self.keystore().clone();
 
-		let inherent_data = Self::create_inherent_data(&slot_info, &log_target).await?;
+		let mut inherent_data = Self::create_inherent_data(&slot_info, &log_target).await?;
+
+		let key = self.get_key(&claim);
+
+		inject_inherents(keystore, &key, &slot_info, &mut inherent_data).await.ok()?;
 
 		let proposing_remaining_duration = self.proposing_remaining_duration(&slot_info);
 		let logs = self.pre_digest_data(slot, claim);
@@ -393,9 +398,6 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		}
 
 		let claim = self.claim_slot(&slot_info.chain_head, slot, &aux_data).await?;
-
-		let key = self.get_key(&claim);
-		inject_inherents(keystore, &key, &mut slot_info).await.ok()?;
 
 		if self.should_backoff(slot, &slot_info.chain_head) {
 			return None
