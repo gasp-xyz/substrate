@@ -1612,12 +1612,12 @@ mod test {
 pub(crate) mod remote_tests {
 	use crate::{AutoLimits, MigrationLimits, Pallet as StateTrieMigration, LOG_TARGET};
 	use codec::Encode;
+	use frame_remote_externalities::Mode;
 	use frame_support::{
 		traits::{Get, Hooks},
 		weights::Weight,
 	};
 	use frame_system::Pallet as System;
-	use frame_remote_externalities::Mode;
 	use sp_core::H256;
 	use sp_runtime::{
 		traits::{Block as BlockT, HashFor, Header as _, One, Zero},

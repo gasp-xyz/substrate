@@ -17,8 +17,8 @@
 //! Test to execute the snapshot using the voter bag.
 
 use frame_election_provider_support::SortedListProvider;
-use frame_support::traits::PalletInfoAccess;
 use frame_remote_externalities::{Builder, Mode, OnlineConfig};
+use frame_support::traits::PalletInfoAccess;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 
 /// Execute create a snapshot from pallet-staking.

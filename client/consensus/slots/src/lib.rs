@@ -95,7 +95,7 @@ async fn inject_inherents<'a, B: BlockT>(
 	keystore: SyncCryptoStorePtr,
 	public: &'a sr25519::Public,
 	slot_info: &'a SlotInfo<B>,
-	in_data: &'a mut InherentData
+	in_data: &'a mut InherentData,
 ) -> Result<(), sp_consensus::Error> {
 	let prev_seed = slot_info.chain_head.seed();
 
