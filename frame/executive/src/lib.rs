@@ -52,7 +52,7 @@
 //! `Executive` type declaration from the node template.
 //!
 //! ```
-//! 
+//!
 //! # use sp_runtime::generic;
 //! # use frame_executive as executive;
 //! # pub struct UncheckedExtrinsic {};
@@ -560,7 +560,7 @@ where
 		// Check that transaction trie root represents the transactions.
 		let xts_root = frame_system::extrinsics_root::<System::Hashing, _>(&block.extrinsics());
 		header.extrinsics_root().check_equal(&xts_root);
-		assert!(header.extrinsics_root() == &xts_root, "Transaction trie root must be valid.");
+		assert!(header.extrinsics_root() == &xts_root, "not enought elements to pop found");
 	}
 
 	/// Actually execute all transitions for `block`.
