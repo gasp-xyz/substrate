@@ -348,7 +348,7 @@ sp-offchain = { path = "../substrate/primitives/offchain" }
 sp-state-machine = { path = "../substrate/primitives/state-machine" }
 sp-keyring = { path = "../substrate/primitives/keyring" }
 sp-externalities = { path = "../substrate/primitives/externalities" }
-sp-beefy = { path = "../substrate/primitives/beefy" }
+beefy-primitives = { path = "../substrate/primitives/beefy", package = "sp-beefy" }
 sp-session = { path = "../substrate/primitives/session" }
 sp-runtime-interface-proc-macro = { path = "../substrate/primitives/runtime-interface/proc-macro" }
 sp-runtime-interface = { path = "../substrate/primitives/runtime-interface" }
@@ -424,7 +424,7 @@ substrate-prometheus-endpoint = { path = "../substrate/utils/prometheus" }
 substrate-build-script-utils = { path = "../substrate/utils/build-script-utils" }
 fork-tree = { path = "../substrate/utils/fork-tree" }
 frame-benchmarking-cli = { path = "../substrate/utils/frame/benchmarking-cli" }
-frame-remote-externalities = { path = "../substrate/utils/frame/remote-externalities" }
+remote-externalities = { path = "../substrate/utils/frame/remote-externalities", package = "frame-remote-externalities" }
 try-runtime-cli = { path = "../substrate/utils/frame/try-runtime/cli" }
 substrate-frame-rpc-system = { path = "../substrate/utils/frame/rpc/system" }
 pallet-vesting-mangata = { path = "../substrate/frame/vesting-mangata" }
@@ -509,7 +509,7 @@ sp-offchain = { path = "../substrate/primitives/offchain" }
 sp-state-machine = { path = "../substrate/primitives/state-machine" }
 sp-keyring = { path = "../substrate/primitives/keyring" }
 sp-externalities = { path = "../substrate/primitives/externalities" }
-sp-beefy = { path = "../substrate/primitives/beefy" }
+beefy-primitives = { path = "../substrate/primitives/beefy", package = "sp-beefy" }
 sp-session = { path = "../substrate/primitives/session" }
 sp-runtime-interface-proc-macro = { path = "../substrate/primitives/runtime-interface/proc-macro" }
 sp-runtime-interface = { path = "../substrate/primitives/runtime-interface" }
@@ -585,7 +585,7 @@ substrate-prometheus-endpoint = { path = "../substrate/utils/prometheus" }
 substrate-build-script-utils = { path = "../substrate/utils/build-script-utils" }
 fork-tree = { path = "../substrate/utils/fork-tree" }
 frame-benchmarking-cli = { path = "../substrate/utils/frame/benchmarking-cli" }
-frame-remote-externalities = { path = "../substrate/utils/frame/remote-externalities" }
+remote-externalities = { path = "../substrate/utils/frame/remote-externalities", package = "frame-remote-externalities" }
 try-runtime-cli = { path = "../substrate/utils/frame/try-runtime/cli" }
 substrate-frame-rpc-system = { path = "../substrate/utils/frame/rpc/system" }
 pallet-vesting-mangata = { path = "../substrate/frame/vesting-mangata" }

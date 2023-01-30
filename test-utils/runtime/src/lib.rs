@@ -1002,18 +1002,18 @@ cfg_if! {
 				}
 			}
 
-			impl sp_beefy::BeefyApi<Block> for Runtime {
-				fn validator_set() -> Option<sp_beefy::ValidatorSet<sp_beefy::crypto::AuthorityId>> {
+			impl beefy_primitives::BeefyApi<Block> for Runtime {
+				fn validator_set() -> Option<beefy_primitives::ValidatorSet<beefy_primitives::crypto::AuthorityId>> {
 					None
 				}
 			}
 
-			impl beefy_merkle_tree::BeefyMmrApi<Block, sp_beefy::MmrRootHash> for Runtime {
-				fn authority_set_proof() -> sp_beefy::mmr::BeefyAuthoritySet<sp_beefy::MmrRootHash> {
+			impl beefy_merkle_tree::BeefyMmrApi<Block, beefy_primitives::MmrRootHash> for Runtime {
+				fn authority_set_proof() -> beefy_primitives::mmr::BeefyAuthoritySet<beefy_primitives::MmrRootHash> {
 					Default::default()
 				}
 
-				fn next_authority_set_proof() -> sp_beefy::mmr::BeefyNextAuthoritySet<sp_beefy::MmrRootHash> {
+				fn next_authority_set_proof() -> beefy_primitives::mmr::BeefyNextAuthoritySet<beefy_primitives::MmrRootHash> {
 					Default::default()
 				}
 			}
