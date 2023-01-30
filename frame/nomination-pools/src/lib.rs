@@ -314,7 +314,6 @@
 //! * PoolMembers cannot vote with their staked funds because they are transferred into the pools
 //!   account. In the future this can be overcome by allowing the members to vote with their bonded
 //!   funds via vote splitting.
-
 //! * PoolMembers cannot quickly transfer to another pool if they do no like nominations, instead
 //!   they must wait for the unbonding duration.
 

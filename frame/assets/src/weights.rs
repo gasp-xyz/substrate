@@ -23,11 +23,13 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("dev"), DB CACHE: 1024
 
 // Executed Command:
-// /home/benchbot/cargo_target_dir/production/substrate
+// ./target/production/substrate
 // benchmark
 // pallet
+// --chain=dev
 // --steps=50
 // --repeat=20
+// --pallet=pallet_assets
 // --extrinsic=*
 // --execution=wasm
 // --wasm-execution=compiled

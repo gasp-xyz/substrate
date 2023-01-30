@@ -31,7 +31,6 @@ sp-core = { version = "7.0.0", path = "../../../primitives/core" }
 sp-inherents = { version = "4.0.0-dev", path = "../../../primitives/inherents" }
 sp-runtime = { version = "7.0.0", path = "../../../primitives/runtime" }
 sp-state-machine = { version = "0.13.0", path = "../../../primitives/state-machine" }
-sp-timestamp = { version = "4.0.0-dev", path = "../../../primitives/timestamp" }
 sp-keystore = { version = "0.13.0", path = "../../../primitives/keystore" }
 sp-ver = { version = "4.0.0-dev", path = "../../../primitives/ver", features=["helpers"]}
 

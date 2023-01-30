@@ -17,6 +17,7 @@
 
 use std::vec;
 
+use beefy_primitives::mmr::MmrLeafVersion;
 use codec::Encode;
 use frame_support::{
 	construct_runtime, parameter_types,
@@ -24,7 +25,6 @@ use frame_support::{
 	traits::{ConstU16, ConstU32, ConstU64, GenesisBuild},
 	BasicExternalities,
 };
-use sp_beefy::mmr::MmrLeafVersion;
 use sp_core::{Hasher, H256};
 use sp_runtime::{
 	app_crypto::ecdsa::Public,
@@ -35,7 +35,7 @@ use sp_runtime::{
 
 use crate as pallet_beefy_mmr;
 
-pub use sp_beefy::{
+pub use beefy_primitives::{
 	crypto::AuthorityId as BeefyId, mmr::BeefyDataProvider, ConsensusLog, BEEFY_ENGINE_ID,
 };
 
@@ -101,7 +101,7 @@ impl pallet_session::Config for Test {
 	type WeightInfo = ();
 }
 
-pub type MmrLeaf = sp_beefy::mmr::MmrLeaf<
+pub type MmrLeaf = beefy_primitives::mmr::MmrLeaf<
 	<Test as frame_system::Config>::BlockNumber,
 	<Test as frame_system::Config>::Hash,
 	<Test as pallet_mmr::Config>::Hash,

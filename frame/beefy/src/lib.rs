@@ -32,7 +32,7 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
-use sp_beefy::{
+use beefy_primitives::{
 	AuthorityIndex, ConsensusLog, OnNewValidatorSet, ValidatorSet, BEEFY_ENGINE_ID,
 	GENESIS_AUTHORITY_SET_ID,
 };
@@ -83,7 +83,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn validator_set_id)]
 	pub(super) type ValidatorSetId<T: Config> =
-		StorageValue<_, sp_beefy::ValidatorSetId, ValueQuery>;
+		StorageValue<_, beefy_primitives::ValidatorSetId, ValueQuery>;
 
 	/// Authorities set scheduled to be used with the next session
 	#[pallet::storage]
@@ -118,7 +118,7 @@ impl<T: Config> Pallet<T> {
 	/// Return the current active BEEFY validator set.
 	pub fn validator_set() -> Option<ValidatorSet<T::BeefyId>> {
 		let validators: BoundedVec<T::BeefyId, T::MaxAuthorities> = Self::authorities();
-		let id: sp_beefy::ValidatorSetId = Self::validator_set_id();
+		let id: beefy_primitives::ValidatorSetId = Self::validator_set_id();
 		ValidatorSet::<T::BeefyId>::new(validators, id)
 	}
 

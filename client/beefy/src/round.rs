@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::{Decode, Encode};
-use log::{debug, trace};
-use sp_beefy::{
+use beefy_primitives::{
 	crypto::{Public, Signature},
 	ValidatorSet, ValidatorSetId,
 };
+use codec::{Decode, Encode};
+use log::{debug, trace};
 use sp_runtime::traits::{Block, NumberFor};
 use std::{collections::BTreeMap, hash::Hash};
 
@@ -174,7 +174,7 @@ mod tests {
 	use sc_network_test::Block;
 	use sp_core::H256;
 
-	use sp_beefy::{crypto::Public, ValidatorSet};
+	use beefy_primitives::{crypto::Public, ValidatorSet};
 
 	use super::{threshold, Block as BlockT, Hash, RoundTracker, Rounds};
 	use crate::keystore::tests::Keyring;

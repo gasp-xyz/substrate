@@ -40,9 +40,9 @@ use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_DEBUG, CONSENSUS_INFO, 
 use sp_arithmetic::traits::BaseArithmetic;
 use sp_consensus::{Proposal, Proposer, SelectChain, SyncOracle};
 use sp_consensus_slots::{Slot, SlotDuration};
-use sp_core::{sr25519, ShufflingSeed};
+use sp_core::{sr25519};
 use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
-use sp_keystore::{vrf, SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use sp_runtime::traits::{Block as BlockT, HashFor, Header as HeaderT};
 use sp_ver::RandomSeedInherentDataProvider;
 use std::{
@@ -79,16 +79,6 @@ pub trait SlotWorker<B: BlockT, Proof> {
 	/// Returns a future that resolves to a [`SlotResult`] iff a block was successfully built in
 	/// the slot. Otherwise `None` is returned.
 	async fn on_slot(&mut self, slot_info: SlotInfo<B>) -> Option<SlotResult<B, Proof>>;
-}
-
-fn create_shuffling_seed_input_data<'a>(prev_seed: &'a ShufflingSeed) -> vrf::VRFTranscriptData {
-	vrf::VRFTranscriptData {
-		label: b"shuffling_seed",
-		items: vec![(
-			"prev_seed",
-			vrf::VRFTranscriptValue::Bytes(prev_seed.seed.as_bytes().iter().cloned().collect()),
-		)],
-	}
 }
 
 async fn inject_inherents<'a, B: BlockT>(
@@ -333,13 +323,12 @@ pub trait SimpleSlotWorker<B: BlockT> {
 	/// Implements [`SlotWorker::on_slot`].
 	async fn on_slot(
 		&mut self,
-		mut slot_info: SlotInfo<B>,
+		slot_info: SlotInfo<B>,
 	) -> Option<SlotResult<B, <Self::Proposer as Proposer<B>>::Proof>>
 	where
 		Self: Sync,
 	{
 		let slot = slot_info.slot;
-		let keystore = self.keystore().clone();
 		let telemetry = self.telemetry();
 		let logging_target = self.logging_target();
 

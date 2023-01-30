@@ -361,7 +361,7 @@ where
 	/// ```
 	fn propose(
 		self,
-		mut inherent_data: InherentData,
+		inherent_data: InherentData,
 		inherent_digests: Digest,
 		max_duration: time::Duration,
 		block_size_limit: Option<usize>,

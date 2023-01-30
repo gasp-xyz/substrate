@@ -102,6 +102,7 @@ use impls::{AllianceProposalProvider, Author, CreditToBlockAuthor};
 pub mod constants;
 use constants::{currency::*, time::*};
 use sp_runtime::generic::Era;
+
 /// Generated voter bag information.
 mod voter_bags;
 
@@ -1773,7 +1774,7 @@ type Migrations = (
 	pallet_contracts::Migration<Runtime>,
 );
 
-/// MMR helper types
+/// MMR helper types.
 mod mmr {
 	use super::Runtime;
 	pub use pallet_mmr::primitives::*;

@@ -17,11 +17,11 @@
 
 use std::vec;
 
-use codec::{Decode, Encode};
-use sp_beefy::{
+use beefy_primitives::{
 	mmr::{BeefyNextAuthoritySet, MmrLeafVersion},
 	ValidatorSet,
 };
+use codec::{Decode, Encode};
 
 use sp_core::H256;
 use sp_io::TestExternalities;

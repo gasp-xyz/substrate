@@ -35,7 +35,7 @@ pub use sp_runtime::traits::Keccak256;
 use sp_runtime::{app_crypto::sp_core, sp_std, traits::Hash as HashT};
 use sp_std::{vec, vec::Vec};
 
-use sp_beefy::mmr::{BeefyAuthoritySet, BeefyNextAuthoritySet};
+use beefy_primitives::mmr::{BeefyAuthoritySet, BeefyNextAuthoritySet};
 
 /// Construct a root hash of a Binary Merkle Tree created from given leaves.
 ///

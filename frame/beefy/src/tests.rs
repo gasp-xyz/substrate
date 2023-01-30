@@ -17,8 +17,8 @@
 
 use std::vec;
 
+use beefy_primitives::ValidatorSet;
 use codec::Encode;
-use sp_beefy::ValidatorSet;
 
 use sp_runtime::DigestItem;
 

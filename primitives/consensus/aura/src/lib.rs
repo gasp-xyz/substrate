@@ -23,8 +23,6 @@ use codec::{Codec, Decode, Encode};
 use sp_runtime::ConsensusEngineId;
 use sp_std::vec::Vec;
 
-use scale_info::prelude::format;
-
 pub mod digests;
 pub mod inherents;
 

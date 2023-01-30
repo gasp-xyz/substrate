@@ -358,11 +358,11 @@
 
 #![cfg(feature = "try-runtime")]
 
-use frame_remote_externalities::{
+use parity_scale_codec::Decode;
+use remote_externalities::{
 	Builder, Mode, OfflineConfig, OnlineConfig, RemoteExternalities, SnapshotConfig,
 	TestExternalities,
 };
-use parity_scale_codec::Decode;
 use sc_cli::{
 	CliConfiguration, RuntimeVersion, WasmExecutionMethod, WasmtimeInstantiationStrategy,
 	DEFAULT_WASMTIME_INSTANTIATION_STRATEGY, DEFAULT_WASM_EXECUTION_METHOD,
@@ -593,8 +593,8 @@ pub enum State {
 }
 
 impl State {
-	/// Create the [`frame_remote_externalities::RemoteExternalities`] using
-	/// [`remote-externalities`] from self.
+	/// Create the [`remote_externalities::RemoteExternalities`] using [`remote-externalities`] from
+	/// self.
 	///
 	/// This will override the code as it sees fit based on [`SharedParams::Runtime`]. It will also
 	/// check the spec-version and name.

@@ -17,11 +17,11 @@
 //! Test to execute the sanity-check of the voter bag.
 
 use frame_election_provider_support::SortedListProvider;
-use frame_remote_externalities::{Builder, Mode, OnlineConfig};
 use frame_support::{
 	storage::generator::StorageMap,
 	traits::{Get, PalletInfoAccess},
 };
+use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 
 /// Execute the sanity check of the bags-list.

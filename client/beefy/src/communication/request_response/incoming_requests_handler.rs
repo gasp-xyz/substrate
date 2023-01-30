@@ -16,6 +16,7 @@
 
 //! Helper for handling (i.e. answering) BEEFY justifications requests from a remote peer.
 
+use beefy_primitives::BEEFY_ENGINE_ID;
 use codec::Decode;
 use futures::{
 	channel::{mpsc, oneshot},
@@ -25,7 +26,6 @@ use log::{debug, trace};
 use sc_client_api::BlockBackend;
 use sc_network::{config as netconfig, config::RequestResponseConfig, PeerId, ReputationChange};
 use sc_network_common::protocol::ProtocolName;
-use sp_beefy::BEEFY_ENGINE_ID;
 use sp_runtime::traits::Block;
 use std::{marker::PhantomData, sync::Arc};
 

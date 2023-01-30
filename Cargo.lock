@@ -7198,7 +7198,6 @@ dependencies = [
 name = "sc-basic-authorship"
 version = "0.10.0-dev"
 dependencies = [
- "aquamarine",
  "futures",
  "futures-timer",
  "log",
@@ -7648,7 +7647,6 @@ dependencies = [
  "sp-keystore 0.13.0",
  "sp-runtime 7.0.0",
  "sp-state-machine 0.13.0",
- "sp-timestamp",
  "sp-ver",
  "substrate-test-runtime-client",
  "thiserror",
