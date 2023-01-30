@@ -28,7 +28,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           toolchain: ${{ env.TOOLCHAIN }}
-      - run: cargo +nightly fmt --all -- --check
+          command: fmt
+          args: --all -- --check
 
   build:
     runs-on: ubuntu-latest
