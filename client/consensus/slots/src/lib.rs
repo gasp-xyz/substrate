@@ -40,7 +40,7 @@ use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_DEBUG, CONSENSUS_INFO, 
 use sp_arithmetic::traits::BaseArithmetic;
 use sp_consensus::{Proposal, Proposer, SelectChain, SyncOracle};
 use sp_consensus_slots::{Slot, SlotDuration};
-use sp_core::{sr25519};
+use sp_core::sr25519;
 use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use sp_runtime::traits::{Block as BlockT, HashFor, Header as HeaderT};
