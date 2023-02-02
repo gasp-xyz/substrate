@@ -794,10 +794,9 @@ mod tests {
 				.unwrap();
 		}
 
-		let block =
-			block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
-				.map(|r| r.block)
-				.unwrap();
+		let block = block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
+			.map(|r| r.block)
+			.unwrap();
 
 		// then
 		// block should have some extrinsics although we have some more in the pool.
@@ -898,8 +897,7 @@ mod tests {
 
 		let deadline = time::Duration::from_secs(9);
 		let proposal =
-			block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
-				.unwrap();
+			block_on(proposer.propose(inherent_data, Default::default(), deadline, None)).unwrap();
 
 		assert_eq!(proposal.block.extrinsics().len(), 1);
 
@@ -1096,10 +1094,9 @@ mod tests {
 		// when
 		// give it enough time so that deadline is never triggered.
 		let deadline = time::Duration::from_secs(90);
-		let block =
-			block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
-				.map(|r| r.block)
-				.unwrap();
+		let block = block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
+			.map(|r| r.block)
+			.unwrap();
 
 		// then block should have all non-exhaust resources extrinsics (+ the first one).
 		assert_eq!(block.extrinsics().len(), 1);
@@ -1179,10 +1176,9 @@ mod tests {
 				.unwrap();
 		}
 
-		let block =
-			block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
-				.map(|r| r.block)
-				.unwrap();
+		let block = block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
+			.map(|r| r.block)
+			.unwrap();
 
 		// then the block should have no transactions despite some in the pool
 		assert_eq!(block.extrinsics().len(), 1);
