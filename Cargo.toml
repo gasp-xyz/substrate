@@ -2,9 +2,9 @@
 resolver = "2"
 
 members = [
-	"bin/node-template/node",
+#	"bin/node-template/node",
 #	"bin/node-template/pallets/template",
-#	"bin/node-template/runtime",
+	"bin/node-template/runtime",
 #	"bin/node/bench",
 #	"bin/node/cli",
 #	"bin/node/executor",

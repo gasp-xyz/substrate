@@ -49,7 +49,6 @@ use ver_api::VerApi;
 
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
-use sp_inherents::InherentDataProvider;
 
 /// Default block size limit in bytes used by [`Proposer`].
 ///
@@ -418,7 +417,7 @@ where
 	) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
 	{
 		let propose_with_start = time::Instant::now();
-		let mut inherent_data = inherent_data.clone();
+		let inherent_data = inherent_data.clone();
 
 		let mut block_builder =
 			self.client.new_block_at(&self.parent_id, inherent_digests, PR::ENABLED)?;
