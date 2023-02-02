@@ -7289,6 +7289,7 @@ dependencies = [
  "sp-ver",
  "substrate-prometheus-endpoint",
  "substrate-test-runtime-client",
+ "tokio",
  "ver-api",
 ]
 
