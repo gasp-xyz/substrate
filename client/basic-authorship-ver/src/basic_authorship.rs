@@ -49,6 +49,7 @@ use ver_api::VerApi;
 
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
+use sp_inherents::InherentDataProvider;
 
 /// Default block size limit in bytes used by [`Proposer`].
 ///
