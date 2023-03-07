@@ -2,8 +2,8 @@
 resolver = "2"
 
 members = [
-#	"bin/node-template/node",
-#	"bin/node-template/pallets/template",
+	"bin/node-template/node",
+	"bin/node-template/pallets/template",
 	"bin/node-template/runtime",
 #	"bin/node/bench",
 #	"bin/node/cli",
@@ -34,7 +34,6 @@ members = [
 	"client/consensus/manual-seal",
 	"client/consensus/pow",
 	"client/consensus/slots",
-	"client/consensus/uncles",
 	"client/db",
 	"client/executor",
 	"client/executor/common",
@@ -66,6 +65,7 @@ members = [
 	"client/service",
 	"client/service/test",
 	"client/state-db",
+	"client/storage-monitor",
 	"client/sysinfo",
 	"client/sync-state-rpc",
 	"client/telemetry",
@@ -89,6 +89,7 @@ members = [
 	"frame/beefy-mmr",
 	"frame/beefy-mmr/primitives",
 	"frame/benchmarking",
+	"frame/benchmarking/pov",
 	"frame/bounties",
 	"frame/child-bounties",
 	"frame/collective",
@@ -125,6 +126,7 @@ members = [
 	"frame/preimage",
 	"frame/proxy",
 	"frame/message-queue",
+	"frame/nfts",
 	"frame/nomination-pools",
 	"frame/nomination-pools/fuzzer",
 	"frame/nomination-pools/benchmarking",
@@ -184,7 +186,6 @@ members = [
 	"primitives/arithmetic",
 	"primitives/arithmetic/fuzzer",
 	"primitives/authority-discovery",
-	"primitives/authorship",
 	"primitives/beefy",
 	"primitives/block-builder",
 	"primitives/blockchain",
@@ -410,7 +411,6 @@ sc-consensus-slots = { path = "../substrate/client/consensus/slots" }
 sc-consensus-babe = { path = "../substrate/client/consensus/babe" }
 sc-consensus-babe-rpc = { path = "../substrate/client/consensus/babe/rpc" }
 sc-consensus-epochs = { path = "../substrate/client/consensus/epochs" }
-sc-consensus-uncles = { path = "../substrate/client/consensus/uncles" }
 sc-consensus-aura = { path = "../substrate/client/consensus/aura" }
 sc-consensus = { path = "../substrate/client/consensus/common" }
 sc-rpc = { path = "../substrate/client/rpc" }
@@ -572,7 +572,6 @@ sc-consensus-slots = { path = "../substrate/client/consensus/slots" }
 sc-consensus-babe = { path = "../substrate/client/consensus/babe" }
 sc-consensus-babe-rpc = { path = "../substrate/client/consensus/babe/rpc" }
 sc-consensus-epochs = { path = "../substrate/client/consensus/epochs" }
-sc-consensus-uncles = { path = "../substrate/client/consensus/uncles" }
 sc-consensus-aura = { path = "../substrate/client/consensus/aura" }
 sc-consensus = { path = "../substrate/client/consensus/common" }
 sc-rpc = { path = "../substrate/client/rpc" }

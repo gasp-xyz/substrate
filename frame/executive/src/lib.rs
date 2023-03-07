@@ -52,7 +52,6 @@
 //! `Executive` type declaration from the node template.
 //!
 //! ```
-//! 
 //! # use sp_runtime::generic;
 //! # use frame_executive as executive;
 //! # pub struct UncheckedExtrinsic {};
@@ -401,8 +400,10 @@ where
 	///
 	/// Runs the try-state code both before and after the migration function if `checks` is set to
 	/// `true`. Also, if set to `true`, it runs the `pre_upgrade` and `post_upgrade` hooks.
-	pub fn try_runtime_upgrade(checks: bool) -> Result<Weight, &'static str> {
-		if checks {
+	pub fn try_runtime_upgrade(
+		checks: frame_try_runtime::UpgradeCheckSelect,
+	) -> Result<Weight, &'static str> {
+		if checks.try_state() {
 			let _guard = frame_support::StorageNoopGuard::default();
 			<AllPalletsWithSystem as frame_support::traits::TryState<System::BlockNumber>>::try_state(
 				frame_system::Pallet::<System>::block_number(),
@@ -412,10 +413,10 @@ where
 
 		let weight =
 			<(COnRuntimeUpgrade, AllPalletsWithSystem) as OnRuntimeUpgrade>::try_on_runtime_upgrade(
-				checks,
+				checks.pre_and_post(),
 			)?;
 
-		if checks {
+		if checks.try_state() {
 			let _guard = frame_support::StorageNoopGuard::default();
 			<AllPalletsWithSystem as frame_support::traits::TryState<System::BlockNumber>>::try_state(
 				frame_system::Pallet::<System>::block_number(),
@@ -1633,7 +1634,7 @@ mod tests {
 				*v = sp_version::RuntimeVersion { spec_version: 1, ..Default::default() }
 			});
 
-			// set block number to non zero so events are not exlcuded
+			// set block number to non zero so events are not excluded
 			System::set_block_number(1);
 
 			Executive::initialize_block(&Header::new(
@@ -2635,5 +2636,43 @@ mod tests {
 				pub_key_bytes.clone(),
 			);
 		});
+		#[should_panic(expected = "A call was labelled as mandatory, but resulted in an Error.")]
+		fn invalid_inherents_fail_block_execution() {
+			let xt1 = TestXt::new(
+				RuntimeCall::Custom(custom::Call::inherent_call {}),
+				sign_extra(1, 0, 0),
+			);
+
+			new_test_ext(1).execute_with(|| {
+				Executive::execute_block(Block::new(
+					Header::new(
+						1,
+						H256::default(),
+						H256::default(),
+						[69u8; 32].into(),
+						Digest::default(),
+					),
+					vec![xt1],
+				));
+			});
+		}
+
+		// Inherents are created by the runtime and don't need to be validated.
+		#[test]
+		fn inherents_fail_validate_block() {
+			let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), None);
+
+			new_test_ext(1).execute_with(|| {
+				assert_eq!(
+					Executive::validate_transaction(
+						TransactionSource::External,
+						xt1,
+						H256::random()
+					)
+					.unwrap_err(),
+					InvalidTransaction::MandatoryValidation.into()
+				);
+			})
+		}
 	}
 }

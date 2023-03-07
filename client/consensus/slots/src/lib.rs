@@ -230,6 +230,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let slot = slot_info.slot;
 		let telemetry = self.telemetry();
 		let log_target = self.logging_target();
+
 		let keystore = self.keystore().clone();
 
 		let mut inherent_data = Self::create_inherent_data(&slot_info, &log_target).await?;
@@ -237,6 +238,8 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let key = self.get_key(&claim);
 
 		inject_inherents(keystore, &key, &slot_info, &mut inherent_data).await.ok()?;
+
+		let inherent_data = Self::create_inherent_data(&slot_info, &log_target).await?;
 
 		let proposing_remaining_duration = self.proposing_remaining_duration(&slot_info);
 		let logs = self.pre_digest_data(slot, claim);
@@ -561,13 +564,7 @@ pub async fn start_slot_worker<B, C, W, SO, CIDP, Proof>(
 	let mut slots = Slots::new(slot_duration.as_duration(), create_inherent_data_providers, client);
 
 	loop {
-		let slot_info = match slots.next_slot().await {
-			Ok(r) => r,
-			Err(e) => {
-				warn!(target: LOG_TARGET, "Error while polling for next slot: {}", e);
-				return
-			},
-		};
+		let slot_info = slots.next_slot().await;
 
 		if sync_oracle.is_major_syncing() {
 			debug!(target: LOG_TARGET, "Skipping proposal slot due to sync.");

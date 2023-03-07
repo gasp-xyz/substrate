@@ -260,6 +260,7 @@ impl<Xt> Deref for ExtrinsicWrapper<Xt> {
 
 /// Testing block
 #[derive(PartialEq, Eq, Clone, Serialize, Debug, Encode, Decode)]
+
 pub struct BlockGeneric<HeaderType, Xt> {
 	/// Block header
 	pub header: HeaderType,
