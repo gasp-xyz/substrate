@@ -64,9 +64,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Council Voting (r:100 w:100)
 	// Storage: Council Prime (r:0 w:1)
 	fn set_members(m: u32, n: u32, p: u32, ) -> Weight {
-		Weight::from_ref_time(0 as u64)
+		Weight::from_parts(0 as u64, 0)
 			// Standard Error: 12_000
-			.saturating_add(Weight::from_ref_time(10_280_000 as u64).saturating_mul(m as u64))
+			.saturating_add(Weight::from_parts(10_280_000 as u64,0).saturating_mul(m as u64))
 			// Standard Error: 12_000
 			.saturating_add(Weight::from_ref_time(126_000 as u64).saturating_mul(n as u64))
 			// Standard Error: 12_000

@@ -581,10 +581,10 @@ where
 
 					trace!(target:"block_builder", "[{:?}] Pushing to the block.", pending_tx_hash);
 					let who = api
-						.get_signer(at, pending_tx_data.clone())
+						.get_signer(*at, pending_tx_data.clone())
 						.unwrap()
 						.map(|signer_info| signer_info.0.clone());
-					match validate_transaction::<Block, C>(at, &api, pending_tx_data.clone()) {
+					match validate_transaction::<Block, C>(*at, &api, pending_tx_data.clone()) {
 						Ok(()) => {
 							transaction_pushed = true;
 							valid_txs.push((who, pending_tx_data));

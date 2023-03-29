@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -365,7 +365,6 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
-	#[pallet::generate_store(pub (super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::hooks]
@@ -412,7 +411,7 @@ pub mod pallet {
 
 		/// Make some on-chain remark.
 		///
-		/// # <weight>
+		/// ## Complexity
 		/// - `O(1)`
 		/// # </weight>
 		#[pallet::call_index(1)]
@@ -434,16 +433,8 @@ pub mod pallet {
 
 		/// Set the new runtime code.
 		///
-		/// # <weight>
+		/// ## Complexity
 		/// - `O(C + S)` where `C` length of `code` and `S` complexity of `can_set_code`
-		/// - 1 call to `can_set_code`: `O(S)` (calls `sp_io::misc::runtime_version` which is
-		///   expensive).
-		/// - 1 storage write (codec `O(C)`).
-		/// - 1 digest item.
-		/// - 1 event.
-		/// The weight of this function is dependent on the runtime, but generally this is very
-		/// expensive. We will treat this as a full block.
-		/// # </weight>
 		#[pallet::call_index(3)]
 		#[pallet::weight((T::BlockWeights::get().max_block, DispatchClass::Operational))]
 		pub fn set_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
@@ -455,13 +446,8 @@ pub mod pallet {
 
 		/// Set the new runtime code without doing any checks of the given `code`.
 		///
-		/// # <weight>
+		/// ## Complexity
 		/// - `O(C)` where `C` length of `code`
-		/// - 1 storage write (codec `O(C)`).
-		/// - 1 digest item.
-		/// - 1 event.
-		/// The weight of this function is dependent on the runtime. We will treat this as a full
-		/// block. # </weight>
 		#[pallet::call_index(4)]
 		#[pallet::weight((T::BlockWeights::get().max_block, DispatchClass::Operational))]
 		pub fn set_code_without_checks(
@@ -980,12 +966,9 @@ impl<
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin() -> Result<O, ()> {
-		let zero_account_id =
-			AccountId::decode(&mut TrailingZeroInput::zeroes()).map_err(|_| ())?;
-		let members = Who::sorted_members();
-		let first_member = match members.get(0) {
+		let first_member = match Who::sorted_members().first() {
 			Some(account) => account.clone(),
-			None => zero_account_id,
+			None => AccountId::decode(&mut TrailingZeroInput::zeroes()).map_err(|_| ())?,
 		};
 		Ok(O::from(RawOrigin::Signed(first_member)))
 	}
@@ -1630,10 +1613,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Deposits a log and ensures it matches the block's log data.
 	///
-	/// # <weight>
+	/// ## Complexity
 	/// - `O(1)`
-	/// - 1 storage write (codec `O(1)`)
-	/// # </weight>
 	pub fn deposit_log(item: generic::DigestItem) {
 		<Digest<T>>::append(item);
 	}
