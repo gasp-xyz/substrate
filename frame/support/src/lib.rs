@@ -1711,7 +1711,6 @@ pub mod pallet_prelude {
 ///
 /// ```ignore
 /// #[pallet::pallet]
-/// #[pallet::generate_store(pub(super) trait Store)]
 /// pub struct Pallet<T>(_);
 /// ```
 /// More precisely, the `Store` trait contains an associated type for each storage. It is
@@ -2318,7 +2317,6 @@ pub mod pallet_prelude {
 ///
 /// 	// Define the pallet struct placeholder, various pallet function are implemented on it.
 /// 	#[pallet::pallet]
-/// 	#[pallet::generate_store(pub(super) trait Store)]
 /// 	pub struct Pallet<T>(_);
 ///
 /// 	// Implement the pallet hooks.
@@ -2505,7 +2503,6 @@ pub mod pallet_prelude {
 /// 	}
 ///
 /// 	#[pallet::pallet]
-/// 	#[pallet::generate_store(pub(super) trait Store)]
 /// 	pub struct Pallet<T, I = ()>(PhantomData<(T, I)>);
 ///
 /// 	#[pallet::hooks]

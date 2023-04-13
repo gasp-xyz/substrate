@@ -849,7 +849,6 @@ pub fn disable_frame_system_supertrait_check(_: TokenStream, _: TokenStream) -> 
 ///
 /// ```ignore
 /// #[pallet::pallet]
-/// #[pallet::generate_store(pub(super) trait Store)]
 /// pub struct Pallet<T>(_);
 /// ```
 /// More precisely, the `Store` trait contains an associated type for each storage. It is
