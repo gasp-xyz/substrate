@@ -82,7 +82,7 @@ where
 		let at = self.client.info().best_hash;
 
 		let runtime_api_result = api.get_vesting_locked_at(
-			&at,
+			at,
 			who,
 			token_id,
 			at_block_number,
