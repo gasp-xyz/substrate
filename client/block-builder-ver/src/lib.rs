@@ -212,7 +212,11 @@ where
 
 		let block_id = BlockId::Hash(parent_hash);
 
-		api.initialize_block_with_context(parent_hash, ExecutionContext::BlockConstruction, &header)?;
+		api.initialize_block_with_context(
+			parent_hash,
+			ExecutionContext::BlockConstruction,
+			&header,
+		)?;
 
 		Ok(Self {
 			parent_hash,
