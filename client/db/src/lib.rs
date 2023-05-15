@@ -42,7 +42,7 @@ mod upgrade;
 mod utils;
 
 use linked_hash_map::LinkedHashMap;
-use log::{debug, trace, warn};
+use log::{debug, info, trace, warn};
 use parking_lot::{Mutex, RwLock};
 use std::{
 	collections::{HashMap, HashSet},
@@ -791,6 +791,7 @@ impl<Block: BlockT> HeaderMetadata<Block> for BlockchainDb<Block> {
 		&self,
 		hash: Block::Hash,
 	) -> Result<CachedHeaderMetadata<Block>, Self::Error> {
+		info!("inside header metadata hash {}", hash);
 		self.header_metadata_cache.header_metadata(hash).map_or_else(
 			|| {
 				Ok(self.header(hash)?

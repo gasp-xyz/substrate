@@ -259,6 +259,7 @@ where
 	/// Benchmark a block that does not include any new extrinsics but needs to shuffle previous one
 	pub fn bench_block(&mut self, ext_builder: &dyn ExtrinsicBuilder) -> Result<Stats> {
 		let block = self.build_second_block(ext_builder, 0, false)?;
+		info!("Block inside bench_block {}", block.block.hash());
 		let record = self.measure_block(&block.block, block.block.hash())?;
 		Stats::new(&record)
 	}
@@ -408,6 +409,7 @@ where
 	/// Measures the time that it take to execute a block or an extrinsic.
 	fn measure_block(&self, block: &Block, block_id: Block::Hash) -> Result<BenchRecord> {
 		let mut record = BenchRecord::new();
+		info!("Block hash inside measure block {}", block_id);
 
 		info!("Running {} warmups...", self.params.warmup);
 		for _ in 0..self.params.warmup {
