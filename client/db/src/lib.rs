@@ -653,6 +653,7 @@ impl<Block: BlockT> sc_client_api::blockchain::HeaderBackend<Block> for Blockcha
 		if let Some(result) = cache.get_refresh(&hash) {
 			return Ok(result.clone())
 		}
+		info!("HASH inside header function {}", hash);
 		let header = utils::read_header(
 			&*self.db,
 			columns::KEY_LOOKUP,
@@ -794,14 +795,20 @@ impl<Block: BlockT> HeaderMetadata<Block> for BlockchainDb<Block> {
 		info!("inside header metadata hash {}", hash);
 		self.header_metadata_cache.header_metadata(hash).map_or_else(
 			|| {
-				Ok(self.header(hash)?
+				self.header(hash)?
 					.map(|header| {
 						let header_metadata = CachedHeaderMetadata::from(&header);
+						info!("Inside map {}", header_metadata.hash);
 						self.header_metadata_cache
 							.insert_header_metadata(header_metadata.hash, header_metadata.clone());
 						header_metadata
 					})
-					.unwrap())
+					.ok_or_else(|| {
+						ClientError::UnknownBlock(format!(
+							"Header was not found in the database: {:?}",
+							hash
+						))
+					})
 			},
 			Ok,
 		)
