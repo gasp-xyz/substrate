@@ -793,19 +793,14 @@ impl<Block: BlockT> HeaderMetadata<Block> for BlockchainDb<Block> {
 	) -> Result<CachedHeaderMetadata<Block>, Self::Error> {
 		self.header_metadata_cache.header_metadata(hash).map_or_else(
 			|| {
-				self.header(hash)?
+				Ok(self.header(hash)?
 					.map(|header| {
 						let header_metadata = CachedHeaderMetadata::from(&header);
 						self.header_metadata_cache
 							.insert_header_metadata(header_metadata.hash, header_metadata.clone());
 						header_metadata
 					})
-					.ok_or_else(|| {
-						ClientError::UnknownBlock(format!(
-							"Header was not found in the database: {:?}",
-							hash
-						))
-					})
+					.unwrap())
 			},
 			Ok,
 		)
