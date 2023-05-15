@@ -416,7 +416,7 @@ where
 			self.client
 				.borrow()
 				.runtime_api()
-				.execute_block(block_id, block.clone())
+				.execute_block(block.hash(), block.clone())
 				.map_err(|e| Error::Client(RuntimeApiError(e)))?;
 		}
 
@@ -430,7 +430,7 @@ where
 			let start = Instant::now();
 
 			runtime_api
-				.execute_block(block_id, block)
+				.execute_block(block.hash(), block)
 				.map_err(|e| Error::Client(RuntimeApiError(e)))?;
 
 			let elapsed = start.elapsed().as_nanos();
