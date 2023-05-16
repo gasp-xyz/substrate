@@ -403,6 +403,7 @@ where
 			block.block.extrinsics().len()
 		);
 		info!("created block {:?}", block.block.clone());
+		info!("created block hash {:?}", block.block.hash());
 		debug!("created block {:?}", block.block.clone());
 		Ok(block)
 	}
