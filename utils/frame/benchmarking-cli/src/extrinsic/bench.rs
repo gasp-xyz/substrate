@@ -402,6 +402,7 @@ where
 			block.block.header().number(),
 			block.block.extrinsics().len()
 		);
+		info!("created block {:?}", block.block.clone());
 		debug!("created block {:?}", block.block.clone());
 		Ok(block)
 	}
