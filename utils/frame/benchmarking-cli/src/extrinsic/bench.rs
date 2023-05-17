@@ -260,7 +260,7 @@ where
 	pub fn bench_block(&mut self, ext_builder: &dyn ExtrinsicBuilder) -> Result<Stats> {
 		let block = self.build_second_block(ext_builder, 0, false)?;
 		info!("Block inside bench_block {}", block.block.hash());
-		let record = self.measure_block(&block.block, block.block.hash())?;
+		let record = self.measure_block(&block.block)?;
 		Stats::new(&record)
 	}
 
@@ -277,7 +277,7 @@ where
 	) -> Result<Stats> {
 		let block = self.build_second_block(ext_builder, count, true)?;
 		let num_ext = block.block.extrinsics().len();
-		let mut records = self.measure_block(&block.block.clone(), block.block.hash())?;
+		let mut records = self.measure_block(&block.block.clone())?;
 
 		for r in &mut records {
 			// Divide by the number of extrinsics in the block.
@@ -409,16 +409,16 @@ where
 	}
 
 	/// Measures the time that it take to execute a block or an extrinsic.
-	fn measure_block(&self, block: &Block, block_id: Block::Hash) -> Result<BenchRecord> {
+	fn measure_block(&self, block: &Block) -> Result<BenchRecord> {
 		let mut record = BenchRecord::new();
-		info!("Block hash inside measure block {}", block_id);
+		let parent = block.header().parent_hash().clone();
 
 		info!("Running {} warmups...", self.params.warmup);
 		for _ in 0..self.params.warmup {
 			self.client
 				.borrow()
 				.runtime_api()
-				.execute_block(block.hash(), block.clone())
+				.execute_block(parent, block.clone())
 				.map_err(|e| Error::Client(RuntimeApiError(e)))?;
 		}
 
@@ -432,7 +432,7 @@ where
 			let start = Instant::now();
 
 			runtime_api
-				.execute_block(block.hash(), block)
+				.execute_block(parent, block)
 				.map_err(|e| Error::Client(RuntimeApiError(e)))?;
 
 			let elapsed = start.elapsed().as_nanos();
