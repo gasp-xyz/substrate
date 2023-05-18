@@ -792,15 +792,11 @@ impl<Block: BlockT> HeaderMetadata<Block> for BlockchainDb<Block> {
 		&self,
 		hash: Block::Hash,
 	) -> Result<CachedHeaderMetadata<Block>, Self::Error> {
-		info!("inside header metadata hash {}", hash);
-		let h = self.header_metadata_cache.header_metadata(hash).unwrap();
-		info!("Cached metadata {}", h.hash);
 		self.header_metadata_cache.header_metadata(hash).map_or_else(
 			|| {
 				self.header(hash)?
 					.map(|header| {
 						let header_metadata = CachedHeaderMetadata::from(&header);
-						info!("Inside map {}", header_metadata.hash);
 						self.header_metadata_cache
 							.insert_header_metadata(header_metadata.hash, header_metadata.clone());
 						header_metadata
