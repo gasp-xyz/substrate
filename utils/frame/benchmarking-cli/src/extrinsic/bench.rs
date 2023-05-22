@@ -259,7 +259,6 @@ where
 	/// Benchmark a block that does not include any new extrinsics but needs to shuffle previous one
 	pub fn bench_block(&mut self, ext_builder: &dyn ExtrinsicBuilder) -> Result<Stats> {
 		let block = self.build_second_block(ext_builder, 0, false)?;
-		info!("Block inside bench_block {}", block.block.hash());
 		let record = self.measure_block(&block.block)?;
 		Stats::new(&record)
 	}
@@ -402,8 +401,6 @@ where
 			block.block.header().number(),
 			block.block.extrinsics().len()
 		);
-		info!("created block {:?}", block.block.clone());
-		info!("created block hash {:?}", block.block.hash());
 		debug!("created block {:?}", block.block.clone());
 		Ok(block)
 	}
