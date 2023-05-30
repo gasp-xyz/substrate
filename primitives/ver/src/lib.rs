@@ -5,18 +5,21 @@ use codec::{Decode, Encode};
 use sp_core::crypto::key_types::AURA;
 #[cfg(feature = "helpers")]
 use sp_core::sr25519;
-use sp_core::ShufflingSeed;
+use sp_core::{ShufflingSeed};
+use sp_core::hash::{H256, H512};
+use sp_core::hexdisplay::AsBytesRef;
 use sp_inherents::{InherentData, InherentIdentifier};
 #[cfg(feature = "helpers")]
-use sp_keystore::vrf::{VRFTranscriptData, VRFTranscriptValue};
+pub use sp_core::sr25519::vrf::{VrfOutput, VrfProof, VrfSignature, VrfTranscript};
 #[cfg(feature = "helpers")]
-use sp_keystore::SyncCryptoStore;
+use sp_keystore::{Keystore};
 use sp_runtime::{traits::Block as BlockT, ConsensusEngineId, RuntimeString};
 use sp_std::vec::Vec;
 
 // originally in sp-module
 pub const RANDOM_SEED_INHERENT_IDENTIFIER: InherentIdentifier = *b"blckseed";
 pub const VER_ENGINE_ID: ConsensusEngineId = *b"_VER";
+
 
 #[derive(Clone, Encode, Decode)]
 pub struct PreDigestVer<Block: BlockT> {
@@ -35,7 +38,7 @@ pub fn extract_inherent_data(data: &InherentData) -> Result<ShufflingSeed, Runti
 pub struct RandomSeedInherentDataProvider(pub ShufflingSeed);
 
 #[cfg(feature = "helpers")]
-pub fn calculate_next_seed<T: sp_keystore::SyncCryptoStore + ?Sized>(
+pub fn calculate_next_seed<T: sp_keystore::Keystore + ?Sized>(
 	keystore: &T,
 	public_key: &sr25519::Public,
 	prev_seed: &ShufflingSeed,
@@ -44,21 +47,21 @@ pub fn calculate_next_seed<T: sp_keystore::SyncCryptoStore + ?Sized>(
 }
 
 #[cfg(feature = "helpers")]
-pub fn calculate_next_seed_from_bytes<T: sp_keystore::SyncCryptoStore + ?Sized>(
+pub fn calculate_next_seed_from_bytes<T: sp_keystore::Keystore + ?Sized>(
 	keystore: &T,
 	public_key: &sr25519::Public,
 	prev_seed: Vec<u8>,
 ) -> Option<ShufflingSeed> {
-	let transcript = VRFTranscriptData {
-		label: b"shuffling_seed",
-		items: vec![("prev_seed", VRFTranscriptValue::Bytes(prev_seed))],
-	};
-	SyncCryptoStore::sr25519_vrf_sign(keystore, AURA, public_key, transcript.clone())
+	let transcript = VrfTranscript::new(b"shuffling_seed", &[(b"prev_seed",&prev_seed)]);
+	Keystore::sr25519_vrf_sign(keystore, AURA, public_key, &transcript)
 		.ok()
 		.flatten()
-		.map(|sig| ShufflingSeed {
-			seed: sig.output.to_bytes().into(),
-			proof: sig.proof.to_bytes().into(),
+		.map(|sig| {
+
+			ShufflingSeed {
+				seed: H256::from_slice(sig.output.encode().as_bytes_ref()),
+				proof: H512::from_slice(sig.proof.encode().as_bytes_ref()),
+			}
 		})
 }
 

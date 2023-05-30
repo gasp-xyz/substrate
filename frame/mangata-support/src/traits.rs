@@ -5,7 +5,6 @@ use mangata_types::{
 	multipurpose_liquidity::{ActivateKind, BondKind},
 	Balance, TokenId,
 };
-use sp_core::U256;
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, MaybeDisplay},
 	Permill,

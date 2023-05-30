@@ -42,7 +42,7 @@ use sp_consensus::{Proposal, Proposer, SelectChain, SyncOracle};
 use sp_consensus_slots::{Slot, SlotDuration};
 use sp_core::sr25519;
 use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use sp_runtime::traits::{Block as BlockT, HashFor, Header as HeaderT};
 use sp_ver::RandomSeedInherentDataProvider;
 use std::{
@@ -82,14 +82,14 @@ pub trait SlotWorker<B: BlockT, Proof> {
 }
 
 async fn inject_inherents<'a, B: BlockT>(
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	public: &'a sr25519::Public,
 	slot_info: &'a SlotInfo<B>,
 	in_data: &'a mut InherentData,
 ) -> Result<(), sp_consensus::Error> {
 	let prev_seed = slot_info.chain_head.seed();
 
-	let seed = sp_ver::calculate_next_seed::<dyn SyncCryptoStore>(&(*keystore), public, prev_seed)
+	let seed = sp_ver::calculate_next_seed::<dyn Keystore>(&(*keystore), public, prev_seed)
 		.ok_or(sp_consensus::Error::StateUnavailable(String::from("signing seed failure")))?;
 
 	RandomSeedInherentDataProvider(seed)
@@ -179,7 +179,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		body: Vec<B::Extrinsic>,
 		storage_changes: StorageChanges<<Self::BlockImport as BlockImport<B>>::Transaction, B>,
 		public: Self::Claim,
-		epoch: Self::AuxData,
+		aux_data: Self::AuxData,
 	) -> Result<
 		sc_consensus::BlockImportParams<B, <Self::BlockImport as BlockImport<B>>::Transaction>,
 		sp_consensus::Error,
@@ -239,7 +239,6 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let key = self.get_key(&claim);
 
 		inject_inherents(keystore, &key, &slot_info, &mut inherent_data).await.ok()?;
-
 		let proposing_remaining_duration =
 			end_proposing_at.saturating_duration_since(Instant::now());
 		let logs = self.pre_digest_data(slot, claim);
@@ -252,7 +251,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 				inherent_data,
 				sp_runtime::generic::Digest { logs },
 				proposing_remaining_duration.mul_f32(0.98),
-				None,
+				slot_info.block_size_limit,
 			)
 			.map_err(|e| sp_consensus::Error::ClientImport(e.to_string()));
 
@@ -495,7 +494,7 @@ pub trait SimpleSlotWorker<B: BlockT> {
 	}
 
 	/// keystore handle
-	fn keystore(&self) -> SyncCryptoStorePtr;
+	fn keystore(&self) -> KeystorePtr;
 }
 
 /// A type that implements [`SlotWorker`] for a type that implements [`SimpleSlotWorker`].

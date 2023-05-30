@@ -220,7 +220,7 @@ pub mod pallet {
 		/// - One DB change.
 		/// # </weight>
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_key(
 			origin: OriginFor<T>,
 			new: AccountIdLookupOf<T>,

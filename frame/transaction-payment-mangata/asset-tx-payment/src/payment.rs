@@ -20,12 +20,13 @@ use crate::Config;
 use codec::FullCodec;
 use frame_support::{
 	traits::{
-		fungibles::{Balanced, CreditOf, Inspect},
-		tokens::BalanceConversion,
+		fungibles::{Balanced, Credit, Inspect},
+		tokens::ConversionToAssetBalance,
 	},
 	unsigned::TransactionValidityError,
 };
 use scale_info::TypeInfo;
+use frame_support::traits::tokens::{Fortitude, Precision, Preservation};
 use sp_runtime::{
 	traits::{
 		AtLeast32BitUnsigned, DispatchInfoOf, MaybeSerializeDeserialize, One, PostDispatchInfoOf,
@@ -81,17 +82,17 @@ pub trait HandleCredit<AccountId, B: Balanced<AccountId>> {
 	/// Implement to determine what to do with the withdrawn asset fees.
 	/// Default for `CreditOf` from the assets pallet is to burn and
 	/// decrease total issuance.
-	fn handle_credit(credit: CreditOf<AccountId, B>);
+	fn handle_credit(credit: Credit<AccountId, B>);
 }
 
 /// Default implementation that just drops the credit according to the `OnDrop` in the underlying
 /// imbalance type.
 impl<A, B: Balanced<A>> HandleCredit<A, B> for () {
-	fn handle_credit(_credit: CreditOf<A, B>) {}
+	fn handle_credit(_credit: Credit<A, B>) {}
 }
 
 /// Implements the asset transaction for a balance to asset converter (implementing
-/// [`BalanceConversion`]) and a credit handler (implementing [`HandleCredit`]).
+/// [`ConversionToAssetBalance`]) and a credit handler (implementing [`HandleCredit`]).
 ///
 /// The credit handler is given the complete fee in terms of the asset used for the transaction.
 pub struct FungiblesAdapter<CON, HC>(PhantomData<(CON, HC)>);
@@ -101,13 +102,13 @@ pub struct FungiblesAdapter<CON, HC>(PhantomData<(CON, HC)>);
 impl<T, CON, HC> OnChargeAssetTransaction<T> for FungiblesAdapter<CON, HC>
 where
 	T: Config,
-	CON: BalanceConversion<BalanceOf<T>, AssetIdOf<T>, AssetBalanceOf<T>>,
+	CON: ConversionToAssetBalance<BalanceOf<T>, AssetIdOf<T>, AssetBalanceOf<T>>,
 	HC: HandleCredit<T::AccountId, T::Fungibles>,
 	AssetIdOf<T>: FullCodec + Copy + MaybeSerializeDeserialize + Debug + Default + Eq + TypeInfo,
 {
 	type Balance = BalanceOf<T>;
 	type AssetId = AssetIdOf<T>;
-	type LiquidityInfo = CreditOf<T::AccountId, T::Fungibles>;
+	type LiquidityInfo = Credit<T::AccountId, T::Fungibles>;
 
 	/// Withdraw the predicted fee from the transaction origin.
 	///
@@ -132,7 +133,8 @@ where
 		if !matches!(can_withdraw, WithdrawConsequence::Success) {
 			return Err(InvalidTransaction::Payment.into())
 		}
-		<T::Fungibles as Balanced<T::AccountId>>::withdraw(asset_id, who, converted_fee)
+		// TODO: FIX WE NEED CORRECT VALUES
+		<T::Fungibles as Balanced<T::AccountId>>::withdraw(asset_id, who, converted_fee, Precision::Exact, Preservation::Preserve, Fortitude::Polite)
 			.map_err(|_| TransactionValidityError::from(InvalidTransaction::Payment))
 	}
 
