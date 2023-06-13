@@ -131,6 +131,7 @@ use frame_support::{
 	weights::Weight,
 };
 use schnorrkel::vrf::{VRFOutput, VRFProof};
+use sp_keystore::testing::MemoryKeystore;
 use sp_runtime::{
 	generic::Digest,
 	traits::{
@@ -867,10 +868,7 @@ mod tests {
 	use pallet_balances::Call as BalancesCall;
 	use pallet_transaction_payment::CurrencyAdapter;
 	use sp_core::crypto::key_types::AURA;
-	use sp_keystore::{
-		vrf::{VRFTranscriptData, VRFTranscriptValue},
-		SyncCryptoStore,
-	};
+	use sp_core::sr25519::vrf::{VrfOutput, VrfProof, VrfSignature, VrfTranscript};
 	use sp_runtime::{
 		generic::{DigestItem, Era},
 		testing::{BlockVer as Block, Digest, HeaderVer as Header},
@@ -1867,7 +1865,7 @@ mod tests {
 		new_test_ext(1).execute_with(|| {
 			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -1875,10 +1873,7 @@ mod tests {
 				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
-			let transcript = VRFTranscriptData {
-				label: b"shuffling_seed",
-				items: vec![("prev_seed", VRFTranscriptValue::Bytes(prev_seed))],
-			};
+			let transcript = VrfTranscript::new(b"shuffling_seed", &[(b"prev_seed",&prev_seed)]);
 
 			let signature = keystore
 				.sr25519_vrf_sign(AURA, &key_pair.public(), transcript.clone())
@@ -1920,7 +1915,7 @@ mod tests {
 	fn accept_block_that_fetches_txs_from_the_queue() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2008,7 +2003,7 @@ mod tests {
 	fn rejects_block_that_enqueues_too_many_transactions_to_storage_queue() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2070,7 +2065,7 @@ mod tests {
 	fn rejects_block_that_enqueues_new_txs_but_doesnt_execute_any() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2159,7 +2154,7 @@ mod tests {
 	fn do_not_allow_to_accept_binary_blobs_that_does_not_deserialize_into_valid_tx() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2212,7 +2207,7 @@ mod tests {
 	fn do_not_panic_when_tx_poped_from_storage_queue_cannot_be_deserialized() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2304,7 +2299,7 @@ mod tests {
 		// inject txs with wrong nonces
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2397,7 +2392,7 @@ mod tests {
 	fn reject_block_that_tries_to_enqueue_same_tx_mulitple_times() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2460,7 +2455,7 @@ mod tests {
 	fn reject_block_that_enqueus_same_tx_multiple_times() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2537,7 +2532,7 @@ mod tests {
 		// Inherents are created by the runtime and don't need to be validated.
 		#[test]
 		fn inherents_fail_validate_block() {
-			let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), None);
+			let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), sign_extra(1, 0, 0));
 
 			new_test_ext(1).execute_with(|| {
 				assert_eq!(
@@ -2558,7 +2553,7 @@ mod tests {
 	fn reject_block_that_tries_to_pop_more_txs_than_available() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeyStore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
@@ -2616,43 +2611,6 @@ mod tests {
 				RuntimeCall::Custom(custom::Call::inherent_call {}),
 				sign_extra(1, 0, 0),
 			);
-
-			new_test_ext(1).execute_with(|| {
-				Executive::execute_block(Block::new(
-					Header::new(
-						1,
-						H256::default(),
-						H256::default(),
-						[69u8; 32].into(),
-						Digest::default(),
-					),
-					vec![xt1],
-				));
-			});
-		}
-
-		// Inherents are created by the runtime and don't need to be validated.
-		#[test]
-		fn inherents_fail_validate_block() {
-			let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), None);
-
-			new_test_ext(1).execute_with(|| {
-				assert_eq!(
-					Executive::validate_transaction(
-						TransactionSource::External,
-						xt1,
-						H256::random()
-					)
-						.unwrap_err(),
-					InvalidTransaction::MandatoryValidation.into()
-				);
-			})
-		}
-		#[test]
-		#[should_panic(expected = "A call was labelled as mandatory, but resulted in an Error.")]
-		fn invalid_inherents_fail_block_execution() {
-			let xt1 =
-				TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), sign_extra(1, 0, 0));
 
 			new_test_ext(1).execute_with(|| {
 				Executive::execute_block(Block::new(
