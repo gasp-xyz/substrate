@@ -653,7 +653,6 @@ impl<Block: BlockT> sc_client_api::blockchain::HeaderBackend<Block> for Blockcha
 		if let Some(result) = cache.get_refresh(&hash) {
 			return Ok(result.clone())
 		}
-		info!("HASH inside header function {}", hash);
 		let header = utils::read_header(
 			&*self.db,
 			columns::KEY_LOOKUP,
