@@ -38,7 +38,7 @@ pub fn extract_inherent_data(data: &InherentData) -> Result<ShufflingSeed, Runti
 pub struct RandomSeedInherentDataProvider(pub ShufflingSeed);
 
 #[cfg(feature = "helpers")]
-pub fn calculate_next_seed<T: sp_keystore::Keystore + ?Sized>(
+pub fn calculate_next_seed<T: Keystore + ?Sized>(
 	keystore: &T,
 	public_key: &sr25519::Public,
 	prev_seed: &ShufflingSeed,
@@ -47,7 +47,7 @@ pub fn calculate_next_seed<T: sp_keystore::Keystore + ?Sized>(
 }
 
 #[cfg(feature = "helpers")]
-pub fn calculate_next_seed_from_bytes<T: sp_keystore::Keystore + ?Sized>(
+pub fn calculate_next_seed_from_bytes<T: Keystore + ?Sized>(
 	keystore: &T,
 	public_key: &sr25519::Public,
 	prev_seed: Vec<u8>,
@@ -57,7 +57,6 @@ pub fn calculate_next_seed_from_bytes<T: sp_keystore::Keystore + ?Sized>(
 		.ok()
 		.flatten()
 		.map(|sig| {
-
 			ShufflingSeed {
 				seed: H256::from_slice(sig.output.encode().as_bytes_ref()),
 				proof: H512::from_slice(sig.proof.encode().as_bytes_ref()),

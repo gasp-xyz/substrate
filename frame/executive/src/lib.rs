@@ -131,7 +131,6 @@ use frame_support::{
 	weights::Weight,
 };
 use schnorrkel::vrf::{VRFOutput, VRFProof};
-use sp_keystore::testing::MemoryKeystore;
 use sp_runtime::{
 	generic::Digest,
 	traits::{
@@ -855,7 +854,7 @@ where
 mod tests {
 	use super::*;
 	use hex_literal::hex;
-	use sp_core::{sr25519, testing::SR25519, Pair, ShufflingSeed, H256};
+	use sp_core::{sr25519, testing::SR25519, Pair, ShufflingSeed, H256, H512};
 
 	use sp_ver::calculate_next_seed_from_bytes;
 
@@ -869,6 +868,8 @@ mod tests {
 	use pallet_transaction_payment::CurrencyAdapter;
 	use sp_core::crypto::key_types::AURA;
 	use sp_core::sr25519::vrf::{VrfOutput, VrfProof, VrfSignature, VrfTranscript};
+	use sp_keystore::testing::MemoryKeystore;
+	use sp_core::hexdisplay::AsBytesRef;
 	use sp_runtime::{
 		generic::{DigestItem, Era},
 		testing::{BlockVer as Block, Digest, HeaderVer as Header},
@@ -1219,13 +1220,13 @@ mod tests {
 		block_import_works_inner(
 			new_test_ext_v0(1),
 			array_bytes::hex_n_into_unchecked(
-				"65e953676859e7a33245908af7ad3637d6861eb90416d433d485e95e2dd174a1",
+				"d1d38dfbb0537af5d25007407f38233f372280d9092c702337a333559dc43b92",
 			),
 		);
 		block_import_works_inner(
 			new_test_ext(1),
 			array_bytes::hex_n_into_unchecked(
-				"5a19b3d6fdb7241836349fdcbe2d9df4d4f945b949d979e31ad50bff1cbcd1c2",
+				"933ded67b9e4e60948c030e9f934f525e9a383b202190bd8377cd61c96f54188",
 			),
 		);
 	}
@@ -1865,18 +1866,18 @@ mod tests {
 		new_test_ext(1).execute_with(|| {
 			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeystore::new();
+			let keystore = Arc::new(MemoryKeystore::new());
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let transcript = VrfTranscript::new(b"shuffling_seed", &[(b"prev_seed",&prev_seed)]);
 
 			let signature = keystore
-				.sr25519_vrf_sign(AURA, &key_pair.public(), transcript.clone())
+				.sr25519_vrf_sign(AURA, &key_pair.public(), &transcript)
 				.unwrap()
 				.unwrap();
 
@@ -1890,7 +1891,7 @@ mod tests {
 						parent_hash: [69u8; 32].into(),
 						number: 1,
 						state_root: hex!(
-							"7c3644ad634bf7d91f11984ebb149e389c92f99fef8ac181f7a9a43ee31d94e3"
+							"3f6b94972b987d9c76943ad7031349c8e62d5900fd98ba6345da8435dad66d09"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -1900,8 +1901,8 @@ mod tests {
 						digest: Digest { logs: vec![] },
 						count: 0,
 						seed: ShufflingSeed {
-							seed: signature.output.to_bytes().into(),
-							proof: signature.proof.to_bytes().into(),
+							seed: H256::from_slice(signature.output.encode().as_bytes_ref()),
+							proof: H512::from_slice(signature.proof.encode().as_bytes_ref()),
 						},
 					},
 					extrinsics: vec![],
@@ -1915,12 +1916,10 @@ mod tests {
 	fn accept_block_that_fetches_txs_from_the_queue() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
-
+			let keystore = MemoryKeystore::new();
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
-			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+			keystore.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
@@ -1948,7 +1947,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -1975,7 +1974,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"9bd12b1263d49dd1d6cf7fdf0d1c8330db2c927bb2d55e77b725ccdcaaefcba5"
+							"da228fb69aec5dd5f76ebb155e8faf848c49581528c06f776543c834369032fa"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2003,12 +2002,12 @@ mod tests {
 	fn rejects_block_that_enqueues_too_many_transactions_to_storage_queue() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let txs = (0..100000)
@@ -2037,7 +2036,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"5bc40cfd524119a0f1ca2fbd9f0357806d0041f56e0de1750b1fe0011915ca4c"
+							"831e2467d5152af868a45ef85d03eff185fd9c2b29df12b2daec5e0ea069acb4"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2065,12 +2064,12 @@ mod tests {
 	fn rejects_block_that_enqueues_new_txs_but_doesnt_execute_any() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let txs = (0..10)
@@ -2099,7 +2098,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"5bc40cfd524119a0f1ca2fbd9f0357806d0041f56e0de1750b1fe0011915ca4c"
+							"831e2467d5152af868a45ef85d03eff185fd9c2b29df12b2daec5e0ea069acb4"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2154,12 +2153,12 @@ mod tests {
 	fn do_not_allow_to_accept_binary_blobs_that_does_not_deserialize_into_valid_tx() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2207,12 +2206,12 @@ mod tests {
 	fn do_not_panic_when_tx_poped_from_storage_queue_cannot_be_deserialized() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2238,7 +2237,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2271,7 +2270,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"9a3734f7495f8d2cdeaf71b8908040428848f8333274f9b871f522aa8838cc2e"
+							"30bb4cf688e7331e3149053da3e83aa56b4b7e2e289106fd7fd523369fb1cbe5"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2299,12 +2298,12 @@ mod tests {
 		// inject txs with wrong nonces
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2336,7 +2335,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"19fd2bb5ce39066549e0f84e2fcabb715e3541e3c26ec8047554bbcd9c7885a4"
+							"9768ee8cbc4d885d73464409ef4adbe4b6997d9accd75eb205eaa09140aace7f"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2364,7 +2363,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"15a8610abb49b6649f043cf75c2ff9ed4209fb5b657fd345d0e0fc9b8165ba72"
+							"f4c46903988d1f2877c965ea22f33853c94ebbd7da3c8597335e46b0392d638b"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2392,12 +2391,12 @@ mod tests {
 	fn reject_block_that_tries_to_enqueue_same_tx_mulitple_times() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2427,7 +2426,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2455,12 +2454,12 @@ mod tests {
 	fn reject_block_that_enqueus_same_tx_multiple_times() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2486,7 +2485,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2553,12 +2552,12 @@ mod tests {
 	fn reject_block_that_tries_to_pop_more_txs_than_available() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = MemoryKeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
