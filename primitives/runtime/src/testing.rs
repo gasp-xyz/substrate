@@ -27,7 +27,7 @@ use crate::{
 		ValidateUnsigned,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
-	ApplyExtrinsicResultWithInfo, CryptoTypeId, KeyTypeId,
+	ApplyExtrinsicResultWithInfo, KeyTypeId,
 };
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use sp_core::{
@@ -116,7 +116,6 @@ impl UintAuthorityId {
 
 impl sp_application_crypto::RuntimeAppPublic for UintAuthorityId {
 	const ID: KeyTypeId = key_types::DUMMY;
-	const CRYPTO_ID: CryptoTypeId = CryptoTypeId(*b"dumm");
 
 	type Signature = TestSignature;
 
@@ -156,10 +155,6 @@ impl OpaqueKeys for UintAuthorityId {
 	fn get<T: Decode>(&self, _: KeyTypeId) -> Option<T> {
 		self.using_encoded(|mut x| T::decode(&mut x)).ok()
 	}
-}
-
-impl crate::BoundToRuntimeAppPublic for UintAuthorityId {
-	type Public = Self;
 }
 
 impl traits::IdentifyAccount for UintAuthorityId {

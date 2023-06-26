@@ -142,6 +142,9 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
 
+#[allow(dead_code)]
+const LOG_TARGET: &str = "runtime::executive";
+
 pub type CheckedOf<E, C> = <E as Checkable<C>>::Checked;
 pub type CallOf<E, C> = <CheckedOf<E, C> as Applyable>::Call;
 pub type OriginOf<E, C> = <CallOf<E, C> as Dispatchable>::RuntimeOrigin;
@@ -307,7 +310,7 @@ where
 		select: frame_try_runtime::TryStateSelect,
 	) -> Result<Weight, &'static str> {
 		frame_support::log::info!(
-			target: "frame::executive",
+			target: LOG_TARGET,
 			"try-runtime: executing block #{:?} / state root check: {:?} / signature check: {:?} / try-state-select: {:?}",
 			block.header().number(),
 			state_root_check,
@@ -344,7 +347,7 @@ where
 		for e in extrinsics {
 			if let Err(err) = try_apply_extrinsic(e.clone()) {
 				frame_support::log::error!(
-					target: "runtime::executive", "executing transaction {:?} failed due to {:?}. Aborting the rest of the block execution.",
+					target: LOG_TARGET, "executing transaction {:?} failed due to {:?}. Aborting the rest of the block execution.",
 					e,
 					err,
 				);
@@ -363,7 +366,7 @@ where
 			select,
 		)
 		.map_err(|e| {
-			frame_support::log::error!(target: "runtime::executive", "failure: {:?}", e);
+			frame_support::log::error!(target: LOG_TARGET, "failure: {:?}", e);
 			e
 		})?;
 		drop(_guard);
@@ -575,16 +578,10 @@ where
 			// any initial checks
 			Self::initial_checks(&block);
 
-			let signature_batching = sp_runtime::SignatureBatching::start();
-
 			// execute extrinsics
 			let (header, extrinsics) = block.deconstruct();
 
 			Self::execute_extrinsics_with_book_keeping(extrinsics, *header.number());
-
-			if !signature_batching.verify() {
-				panic!("Signature verification failed.");
-			}
 
 			// any final checks
 			Self::final_checks(&header);
@@ -604,8 +601,6 @@ where
 			Self::ver_checks(&block, public);
 			<frame_system::Pallet<System>>::set_block_seed(&block.header().seed().seed);
 			Self::initial_checks(&block);
-
-			let signature_batching = sp_runtime::SignatureBatching::start();
 
 			let poped_txs_count = *block.header().count();
 			let popped_elems = <frame_system::Pallet<System>>::pop_txs(poped_txs_count.saturated_into());
@@ -665,10 +660,6 @@ where
 				}
 			}
 
-
-			if !signature_batching.verify() {
-				panic!("Signature verification failed.");
-			}
 			Self::final_checks(&header);
 		}
 	}
@@ -863,26 +854,22 @@ where
 mod tests {
 	use super::*;
 	use hex_literal::hex;
-	use sp_core::{sr25519, testing::SR25519, Pair, ShufflingSeed, H256};
+	use sp_core::{sr25519, testing::SR25519, Pair, ShufflingSeed, H256, H512};
 
 	use sp_ver::calculate_next_seed_from_bytes;
 
 	use frame_support::{
 		assert_err, parameter_types,
-		traits::{
-			ConstU32, ConstU64, ConstU8, Currency, LockIdentifier, LockableCurrency,
-			WithdrawReasons,
-		},
+		traits::{fungible, ConstU32, ConstU64, ConstU8, Currency},
 		weights::{ConstantMultiplier, IdentityFee, RuntimeDbWeight, Weight, WeightToFee},
 	};
-	use frame_system::{Call as SystemCall, ChainContext, LastRuntimeUpgradeInfo};
+	use frame_system::{ChainContext, LastRuntimeUpgradeInfo};
 	use pallet_balances::Call as BalancesCall;
 	use pallet_transaction_payment::CurrencyAdapter;
 	use sp_core::crypto::key_types::AURA;
-	use sp_keystore::{
-		vrf::{VRFTranscriptData, VRFTranscriptValue},
-		SyncCryptoStore,
-	};
+	use sp_core::sr25519::vrf::{VrfOutput, VrfProof, VrfSignature, VrfTranscript};
+	use sp_keystore::testing::MemoryKeystore;
+	use sp_core::hexdisplay::AsBytesRef;
 	use sp_runtime::{
 		generic::{DigestItem, Era},
 		testing::{BlockVer as Block, Digest, HeaderVer as Header},
@@ -895,7 +882,7 @@ mod tests {
 
 	const TEST_KEY: &[u8] = b":test:key:";
 
-	#[frame_support::pallet]
+	#[frame_support::pallet(dev_mode)]
 	mod custom {
 		use frame_support::pallet_prelude::*;
 		use frame_system::pallet_prelude::*;
@@ -1097,6 +1084,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type FreezeIdentifier = ();
+		type MaxFreezes = ConstU32<1>;
+		type HoldIdentifier = ();
+		type MaxHolds = ConstU32<1>;
 	}
 
 	parameter_types! {
@@ -1170,7 +1161,7 @@ mod tests {
 	}
 
 	fn call_transfer(dest: u64, value: u64) -> RuntimeCall {
-		RuntimeCall::Balances(BalancesCall::transfer { dest, value })
+		RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest, value })
 	}
 
 	fn enqueue_txs(
@@ -1229,13 +1220,13 @@ mod tests {
 		block_import_works_inner(
 			new_test_ext_v0(1),
 			array_bytes::hex_n_into_unchecked(
-				"1e4e3699be2cec577f164e32b88f0f6f2124557be8eaab02cb751f4e561ac902",
+				"d1d38dfbb0537af5d25007407f38233f372280d9092c702337a333559dc43b92",
 			),
 		);
 		block_import_works_inner(
 			new_test_ext(1),
 			array_bytes::hex_n_into_unchecked(
-				"a5991b9204bb6ebb83e0da0abeef3b3a91ea7f7d1e547a62df6c62752fe9295d",
+				"933ded67b9e4e60948c030e9f934f525e9a383b202190bd8377cd61c96f54188",
 			),
 		);
 	}
@@ -1326,7 +1317,7 @@ mod tests {
 		let mut t = new_test_ext(10000);
 		// given: TestXt uses the encoded len as fixed Len:
 		let xt = TestXt::new(
-			RuntimeCall::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
+			RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest: 33, value: 0 }),
 			sign_extra(1, 0, 0),
 		);
 		let encoded = xt.encode();
@@ -1349,7 +1340,10 @@ mod tests {
 
 			for nonce in 0..=num_to_exhaust_block {
 				let xt = TestXt::new(
-					RuntimeCall::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
+					RuntimeCall::Balances(BalancesCall::transfer_allow_death {
+						dest: 33,
+						value: 0,
+					}),
 					sign_extra(1, nonce.into(), 0),
 				);
 				let res = Executive::apply_extrinsic(xt);
@@ -1374,15 +1368,15 @@ mod tests {
 	#[test]
 	fn block_weight_and_size_is_stored_per_tx() {
 		let xt = TestXt::new(
-			RuntimeCall::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
+			RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest: 33, value: 0 }),
 			sign_extra(1, 0, 0),
 		);
 		let x1 = TestXt::new(
-			RuntimeCall::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
+			RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest: 33, value: 0 }),
 			sign_extra(1, 1, 0),
 		);
 		let x2 = TestXt::new(
-			RuntimeCall::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
+			RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest: 33, value: 0 }),
 			sign_extra(1, 2, 0),
 		);
 		let len = xt.clone().encode().len() as u32;
@@ -1468,50 +1462,30 @@ mod tests {
 	}
 
 	#[test]
-	fn can_pay_for_tx_fee_on_full_lock() {
-		let id: LockIdentifier = *b"0       ";
-		let execute_with_lock = |lock: WithdrawReasons| {
-			let mut t = new_test_ext(1);
-			t.execute_with(|| {
-				<pallet_balances::Pallet<Runtime> as LockableCurrency<Balance>>::set_lock(
-					id, &1, 110, lock,
-				);
-				let xt = TestXt::new(
-					RuntimeCall::System(SystemCall::remark { remark: vec![1u8] }),
-					sign_extra(1, 0, 0),
-				);
-				let weight = xt.get_dispatch_info().weight +
-					<Runtime as frame_system::Config>::BlockWeights::get()
-						.get(DispatchClass::Normal)
-						.base_extrinsic;
-				let fee: Balance =
-					<Runtime as pallet_transaction_payment::Config>::WeightToFee::weight_to_fee(
-						&weight,
-					);
-				Executive::initialize_block(&Header::new(
-					1,
-					H256::default(),
-					H256::default(),
-					[69u8; 32].into(),
-					Digest::default(),
-				));
+	fn can_not_pay_for_tx_fee_on_full_lock() {
+		let mut t = new_test_ext(1);
+		t.execute_with(|| {
+			<pallet_balances::Pallet<Runtime> as fungible::MutateFreeze<u64>>::set_freeze(
+				&(),
+				&1,
+				110,
+			)
+			.unwrap();
+			let xt = TestXt::new(
+				RuntimeCall::System(frame_system::Call::remark { remark: vec![1u8] }),
+				sign_extra(1, 0, 0),
+			);
+			Executive::initialize_block(&Header::new(
+				1,
+				H256::default(),
+				H256::default(),
+				[69u8; 32].into(),
+				Digest::default(),
+			));
 
-				if lock == WithdrawReasons::except(WithdrawReasons::TRANSACTION_PAYMENT) {
-					assert!(Executive::apply_extrinsic(xt).unwrap().is_ok());
-					// tx fee has been deducted.
-					assert_eq!(<pallet_balances::Pallet<Runtime>>::total_balance(&1), 111 - fee);
-				} else {
-					assert_eq!(
-						Executive::apply_extrinsic(xt),
-						Err(InvalidTransaction::Payment.into()),
-					);
-					assert_eq!(<pallet_balances::Pallet<Runtime>>::total_balance(&1), 111);
-				}
-			});
-		};
-
-		execute_with_lock(WithdrawReasons::all());
-		execute_with_lock(WithdrawReasons::except(WithdrawReasons::TRANSACTION_PAYMENT));
+			assert_eq!(Executive::apply_extrinsic(xt), Err(InvalidTransaction::Payment.into()),);
+			assert_eq!(<pallet_balances::Pallet<Runtime>>::total_balance(&1), 111);
+		});
 	}
 
 	#[test]
@@ -1653,7 +1627,7 @@ mod tests {
 	#[test]
 	fn custom_runtime_upgrade_is_called_when_using_execute_block_trait() {
 		let xt = TestXt::new(
-			RuntimeCall::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
+			RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest: 33, value: 0 }),
 			sign_extra(1, 0, 0),
 		);
 
@@ -1779,7 +1753,7 @@ mod tests {
 	// System::enqueue_txs needs to be executed after extrinsics
 	fn invalid_inherent_position_fail() {
 		let xt1 = TestXt::new(
-			RuntimeCall::Balances(BalancesCall::transfer { dest: 33, value: 0 }),
+			RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest: 33, value: 0 }),
 			sign_extra(1, 0, 0),
 		);
 		let xt2 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), None);
@@ -1892,21 +1866,18 @@ mod tests {
 		new_test_ext(1).execute_with(|| {
 			let prev_seed = vec![0u8; 32];
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = Arc::new(MemoryKeystore::new());
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
-			let transcript = VRFTranscriptData {
-				label: b"shuffling_seed",
-				items: vec![("prev_seed", VRFTranscriptValue::Bytes(prev_seed))],
-			};
+			let transcript = VrfTranscript::new(b"shuffling_seed", &[(b"prev_seed",&prev_seed)]);
 
 			let signature = keystore
-				.sr25519_vrf_sign(AURA, &key_pair.public(), transcript.clone())
+				.sr25519_vrf_sign(AURA, &key_pair.public(), &transcript)
 				.unwrap()
 				.unwrap();
 
@@ -1920,7 +1891,7 @@ mod tests {
 						parent_hash: [69u8; 32].into(),
 						number: 1,
 						state_root: hex!(
-							"7c3644ad634bf7d91f11984ebb149e389c92f99fef8ac181f7a9a43ee31d94e3"
+							"3f6b94972b987d9c76943ad7031349c8e62d5900fd98ba6345da8435dad66d09"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -1930,8 +1901,8 @@ mod tests {
 						digest: Digest { logs: vec![] },
 						count: 0,
 						seed: ShufflingSeed {
-							seed: signature.output.to_bytes().into(),
-							proof: signature.proof.to_bytes().into(),
+							seed: H256::from_slice(signature.output.encode().as_bytes_ref()),
+							proof: H512::from_slice(signature.proof.encode().as_bytes_ref()),
 						},
 					},
 					extrinsics: vec![],
@@ -1945,12 +1916,10 @@ mod tests {
 	fn accept_block_that_fetches_txs_from_the_queue() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
-
+			let keystore = MemoryKeystore::new();
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
-			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+			keystore.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
@@ -1978,7 +1947,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2005,7 +1974,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"9bd12b1263d49dd1d6cf7fdf0d1c8330db2c927bb2d55e77b725ccdcaaefcba5"
+							"da228fb69aec5dd5f76ebb155e8faf848c49581528c06f776543c834369032fa"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2033,12 +2002,12 @@ mod tests {
 	fn rejects_block_that_enqueues_too_many_transactions_to_storage_queue() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let txs = (0..100000)
@@ -2067,7 +2036,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"5bc40cfd524119a0f1ca2fbd9f0357806d0041f56e0de1750b1fe0011915ca4c"
+							"831e2467d5152af868a45ef85d03eff185fd9c2b29df12b2daec5e0ea069acb4"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2095,12 +2064,12 @@ mod tests {
 	fn rejects_block_that_enqueues_new_txs_but_doesnt_execute_any() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let txs = (0..10)
@@ -2129,7 +2098,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"5bc40cfd524119a0f1ca2fbd9f0357806d0041f56e0de1750b1fe0011915ca4c"
+							"831e2467d5152af868a45ef85d03eff185fd9c2b29df12b2daec5e0ea069acb4"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2184,12 +2153,12 @@ mod tests {
 	fn do_not_allow_to_accept_binary_blobs_that_does_not_deserialize_into_valid_tx() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2237,12 +2206,12 @@ mod tests {
 	fn do_not_panic_when_tx_poped_from_storage_queue_cannot_be_deserialized() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2268,7 +2237,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2301,7 +2270,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"9a3734f7495f8d2cdeaf71b8908040428848f8333274f9b871f522aa8838cc2e"
+							"30bb4cf688e7331e3149053da3e83aa56b4b7e2e289106fd7fd523369fb1cbe5"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2329,12 +2298,12 @@ mod tests {
 		// inject txs with wrong nonces
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2366,7 +2335,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"19fd2bb5ce39066549e0f84e2fcabb715e3541e3c26ec8047554bbcd9c7885a4"
+							"9768ee8cbc4d885d73464409ef4adbe4b6997d9accd75eb205eaa09140aace7f"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2394,7 +2363,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 2,
 						state_root: hex!(
-							"15a8610abb49b6649f043cf75c2ff9ed4209fb5b657fd345d0e0fc9b8165ba72"
+							"f4c46903988d1f2877c965ea22f33853c94ebbd7da3c8597335e46b0392d638b"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2422,12 +2391,12 @@ mod tests {
 	fn reject_block_that_tries_to_enqueue_same_tx_mulitple_times() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2457,7 +2426,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2485,12 +2454,12 @@ mod tests {
 	fn reject_block_that_enqueus_same_tx_multiple_times() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2516,7 +2485,7 @@ mod tests {
 						parent_hash: System::parent_hash(),
 						number: 1,
 						state_root: hex!(
-							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
 						)
 						.into(),
 						extrinsics_root: hex!(
@@ -2562,7 +2531,7 @@ mod tests {
 		// Inherents are created by the runtime and don't need to be validated.
 		#[test]
 		fn inherents_fail_validate_block() {
-			let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), None);
+			let xt1 = TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), sign_extra(1, 0, 0));
 
 			new_test_ext(1).execute_with(|| {
 				assert_eq!(
@@ -2583,12 +2552,12 @@ mod tests {
 	fn reject_block_that_tries_to_pop_more_txs_than_available() {
 		new_test_ext(1).execute_with(|| {
 			let secret_uri = "//Alice";
-			let keystore = sp_keystore::testing::KeyStore::new();
+			let keystore = MemoryKeystore::new();
 
 			let key_pair =
 				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 			keystore
-				.insert_unknown(AURA, secret_uri, key_pair.public().as_ref())
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
 				.expect("Inserts unknown key");
 
 			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
@@ -2616,11 +2585,11 @@ mod tests {
 						state_root: hex!(
 							"c6bbd33a1161f1b0d719594304a81c6cc97a183a64a09e1903cb58ed6e247148"
 						)
-						.into(),
+							.into(),
 						extrinsics_root: hex!(
 							"9f907f07e03a93bbb696e4071f58237edc3 5a701d24e5a2155cf52a2b32a4ef3"
 						)
-						.into(),
+							.into(),
 						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
 						count: 1,
 						seed: calculate_next_seed_from_bytes(
@@ -2628,7 +2597,7 @@ mod tests {
 							&key_pair.public(),
 							System::block_seed().as_bytes().to_vec(),
 						)
-						.unwrap(),
+							.unwrap(),
 					},
 					extrinsics: vec![enqueue_txs_inherent.clone(), enqueue_txs_inherent],
 				},
@@ -2663,12 +2632,8 @@ mod tests {
 
 			new_test_ext(1).execute_with(|| {
 				assert_eq!(
-					Executive::validate_transaction(
-						TransactionSource::External,
-						xt1,
-						H256::random()
-					)
-					.unwrap_err(),
+					Executive::validate_transaction(TransactionSource::External, xt1, H256::random())
+						.unwrap_err(),
 					InvalidTransaction::MandatoryValidation.into()
 				);
 			})

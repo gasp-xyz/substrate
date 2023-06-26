@@ -49,10 +49,14 @@ use sp_consensus_beefy::{
 	crypto::AuthorityId, BeefyApi, MmrRootHash, PayloadProvider, ValidatorSet, BEEFY_ENGINE_ID,
 	GENESIS_AUTHORITY_SET_ID,
 };
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use sp_mmr_primitives::MmrApi;
 use sp_runtime::traits::{Block, Zero};
-use std::{collections::VecDeque, marker::PhantomData, sync::Arc};
+use std::{
+	collections::{BTreeMap, VecDeque},
+	marker::PhantomData,
+	sync::Arc,
+};
 
 mod aux_schema;
 mod error;
@@ -197,7 +201,7 @@ pub struct BeefyParams<B: Block, BE, C, N, P, R, S> {
 	/// Runtime Api Provider
 	pub runtime: Arc<R>,
 	/// Local key store
-	pub key_store: Option<SyncCryptoStorePtr>,
+	pub key_store: Option<KeystorePtr>,
 	/// BEEFY voter network params
 	pub network_params: BeefyNetworkParams<B, N, S>,
 	/// Minimal delta between blocks, BEEFY should vote for
@@ -247,9 +251,12 @@ pub async fn start_beefy_gadget<B, BE, C, N, P, R, S>(
 	} = network_params;
 
 	let known_peers = Arc::new(Mutex::new(KnownPeers::new()));
-	let gossip_validator =
-		Arc::new(communication::gossip::GossipValidator::new(known_peers.clone()));
-	let mut gossip_engine = sc_network_gossip::GossipEngine::new(
+	// Default votes filter is to discard everything.
+	// Validator is updated later with correct starting round and set id.
+	let (gossip_validator, gossip_report_stream) =
+		communication::gossip::GossipValidator::new(known_peers.clone());
+	let gossip_validator = Arc::new(gossip_validator);
+	let mut gossip_engine = GossipEngine::new(
 		network.clone(),
 		sync.clone(),
 		gossip_protocol_name,
@@ -284,8 +291,16 @@ pub async fn start_beefy_gadget<B, BE, C, N, P, R, S>(
 				return
 			},
 		};
+	// Update the gossip validator with the right starting round and set id.
+	if let Err(e) = persisted_state
+		.gossip_filter_config()
+		.map(|f| gossip_validator.update_filter(f))
+	{
+		error!(target: LOG_TARGET, "Error: {:?}. Terminating.", e);
+		return
+	}
 
-	let worker_params = worker::WorkerParams {
+	let worker = worker::BeefyWorker {
 		backend,
 		payload_provider,
 		runtime,
@@ -293,13 +308,13 @@ pub async fn start_beefy_gadget<B, BE, C, N, P, R, S>(
 		key_store: key_store.into(),
 		gossip_engine,
 		gossip_validator,
+		gossip_report_stream,
 		on_demand_justifications,
 		links,
 		metrics,
+		pending_justifications: BTreeMap::new(),
 		persisted_state,
 	};
-
-	let worker = worker::BeefyWorker::<_, _, _, _, _>::new(worker_params);
 
 	futures::future::join(
 		worker.run(block_import_justif, finality_notifications),

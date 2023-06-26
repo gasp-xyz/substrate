@@ -86,7 +86,7 @@ impl From<Error> for i32 {
 impl<C, Block, Balance>
 	TransactionPaymentApiServer<
 		<Block as BlockT>::Hash,
-		RuntimeDispatchInfo<Balance, sp_weights::OldWeight>,
+		RuntimeDispatchInfo<Balance, sp_weights::Weight>,
 	> for TransactionPayment<C, Block>
 where
 	Block: BlockT,
@@ -98,7 +98,7 @@ where
 		&self,
 		encoded_xt: Bytes,
 		at: Option<Block::Hash>,
-	) -> RpcResult<RuntimeDispatchInfo<Balance, sp_weights::OldWeight>> {
+	) -> RpcResult<RuntimeDispatchInfo<Balance, sp_weights::Weight>> {
 		let api = self.client.runtime_api();
 		let at = self.client.info().best_hash;
 
@@ -141,7 +141,7 @@ where
 				.map_err(|e| map_err(e, "Unable to query dispatch info."))?;
 
 			Ok(RuntimeDispatchInfo {
-				weight: sp_weights::OldWeight(res.weight.ref_time()),
+				weight: res.weight,
 				class: res.class,
 				partial_fee: res.partial_fee,
 			})

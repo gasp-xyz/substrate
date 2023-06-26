@@ -30,7 +30,7 @@ sp_api::decl_runtime_apis! {
 		Balance: Codec + MaybeDisplay,
 	{
 		#[changed_in(2)]
-		fn query_info(uxt: Block::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance, sp_weights::OldWeight>;
+		fn query_info(uxt: Block::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance, sp_weights::Weight>;
 		fn query_info(uxt: Block::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance>;
 		fn query_fee_details(uxt: Block::Extrinsic, len: u32) -> FeeDetails<Balance>;
 	}

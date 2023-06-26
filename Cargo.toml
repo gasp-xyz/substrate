@@ -109,6 +109,7 @@ members = [
 	"frame/election-provider-support/solution-type/fuzzer",
 	"frame/examples/basic",
 	"frame/examples/offchain-worker",
+	"frame/examples/dev-mode",
 	"frame/executive",
 	"frame/nis",
 	"frame/grandpa",
@@ -175,6 +176,7 @@ members = [
 	"frame/transaction-payment-mangata/rpc/runtime-api",
 	"frame/transaction-storage",
 	"frame/treasury",
+	"frame/asset-rate",
 	"frame/tips",
 	"frame/uniques",
 	"frame/utility",
@@ -201,7 +203,6 @@ members = [
 	"primitives/consensus/grandpa",
 	"primitives/consensus/pow",
 	"primitives/consensus/slots",
-	"primitives/consensus/vrf",
 	"primitives/core",
 	"primitives/core/hashing",
 	"primitives/core/hashing/proc-macro",
@@ -215,6 +216,7 @@ members = [
 	"primitives/keystore",
 	"primitives/maybe-compressed-blob",
 	"primitives/merkle-mountain-range",
+	"primitives/metadata-ir",
 	"primitives/npos-elections",
 	"primitives/npos-elections/fuzzer",
 	"primitives/offchain",
@@ -336,7 +338,6 @@ panic = "unwind"
 [patch."https://github.com/mangata-finance/substrate"]
 sp-debug-derive = { path = "../substrate/primitives/debug-derive" }
 extrinsic-shuffler = { path = "../substrate/primitives/shuffler" }
-sp-authorship = { path = "../substrate/primitives/authorship" }
 sp-storage = { path = "../substrate/primitives/storage" }
 sp-timestamp = { path = "../substrate/primitives/timestamp" }
 sp-trie = { path = "../substrate/primitives/trie" }
@@ -372,7 +373,6 @@ sp-runtime = { path = "../substrate/primitives/runtime" }
 sp-consensus-slots = { path = "../substrate/primitives/consensus/slots" }
 sp-consensus-babe = { path = "../substrate/primitives/consensus/babe" }
 sp-consensus-aura = { path = "../substrate/primitives/consensus/aura" }
-sp-consensus-vrf = { path = "../substrate/primitives/consensus/vrf" }
 sp-consensus = { path = "../substrate/primitives/consensus/common" }
 sp-ver = { path = "../substrate/primitives/ver" }
 sp-rpc = { path = "../substrate/primitives/rpc" }
@@ -490,7 +490,6 @@ pallet-society = { path = "../substrate/frame/society" }
 [patch."https://github.com/paritytech/substrate"]
 sp-debug-derive = { path = "../substrate/primitives/debug-derive" }
 extrinsic-shuffler = { path = "../substrate/primitives/shuffler" }
-sp-authorship = { path = "../substrate/primitives/authorship" }
 sp-storage = { path = "../substrate/primitives/storage" }
 sp-timestamp = { path = "../substrate/primitives/timestamp" }
 sp-trie = { path = "../substrate/primitives/trie" }
@@ -526,7 +525,6 @@ sp-runtime = { path = "../substrate/primitives/runtime" }
 sp-consensus-slots = { path = "../substrate/primitives/consensus/slots" }
 sp-consensus-babe = { path = "../substrate/primitives/consensus/babe" }
 sp-consensus-aura = { path = "../substrate/primitives/consensus/aura" }
-sp-consensus-vrf = { path = "../substrate/primitives/consensus/vrf" }
 sp-consensus = { path = "../substrate/primitives/consensus/common" }
 sp-ver = { path = "../substrate/primitives/ver" }
 sp-rpc = { path = "../substrate/primitives/rpc" }

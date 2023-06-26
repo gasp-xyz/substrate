@@ -417,7 +417,7 @@ pub mod pallet {
 		// TODO
 		// Needs to be benchmarked
 		#[pallet::call_index(4)]
-		#[pallet::weight(400_000_000u64)]
+		#[pallet::weight({400_000_000u64})]
 		pub fn sudo_unlock_all_vesting_tokens(
 			origin: OriginFor<T>,
 			target: <T::Lookup as StaticLookup>::Source,

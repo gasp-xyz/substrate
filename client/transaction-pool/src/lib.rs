@@ -589,7 +589,6 @@ async fn prune_known_txs_for_block<Block: BlockT, Api: graph::ChainApi<Block = B
 			}
 		}
 	}
-
 	if let Err(e) = pool
 		.prune(&BlockId::Hash(block_hash), &BlockId::hash(*header.parent_hash()), &extrinsics)
 		.await
