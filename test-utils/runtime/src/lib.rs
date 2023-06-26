@@ -390,6 +390,8 @@ cfg_if! {
 				fn do_trace_log();
 				/// Verify the given signature, public & message bundle.
 				fn verify_ed25519(sig: ed25519::Signature, public: ed25519::Public, message: Vec<u8>) -> bool;
+				/// Write the given `value` under the given `key` into the storage and then optional panic.
+				fn write_key_value(key: Vec<u8>, value: Vec<u8>, panic: bool);
 			}
 		}
 	} else {
@@ -904,6 +906,14 @@ cfg_if! {
 
 				fn verify_ed25519(sig: ed25519::Signature, public: ed25519::Public, message: Vec<u8>) -> bool {
 					sp_io::crypto::ed25519_verify(&sig, &message, &public)
+				}
+
+				fn write_key_value(key: Vec<u8>, value: Vec<u8>, panic: bool) {
+					sp_io::storage::set(&key, &value);
+
+					if panic {
+						panic!("I'm just following my master");
+					}
 				}
 			}
 
