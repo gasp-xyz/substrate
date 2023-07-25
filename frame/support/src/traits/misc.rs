@@ -804,6 +804,18 @@ pub trait IsSubType<T> {
 /// Executing a block means that all extrinsics in a given block will be executed and the resulting
 /// header will be checked against the header of the given block.
 pub trait ExecuteBlock<Block: BlockT> {
+	/// Execute the given `block` performing VER shuffling seed verification
+	///
+	/// This will execute all extrinsics in the block and check that the resulting header is
+	/// correct.
+	///
+	/// # Panic
+	///
+	/// Panics when an extrinsics panics or the resulting header doesn't match the expected header.
+	fn execute_block_ver(_block: Block, _public: Vec<u8>) {
+		unimplemented!();
+	}
+
 	/// Execute the given `block`.
 	///
 	/// This will execute all extrinsics in the block and check that the resulting header is

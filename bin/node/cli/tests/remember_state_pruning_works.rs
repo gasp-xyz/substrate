@@ -22,6 +22,7 @@ use substrate_cli_test_utils as common;
 
 #[tokio::test]
 #[cfg(unix)]
+#[ignore = "VER for BABE not implemented"]
 async fn remember_state_pruning_works() {
 	let base_path = tempdir().expect("could not create a temp dir");
 

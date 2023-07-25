@@ -1,0 +1,79 @@
+on:
+  pull_request:
+    branches:
+      - develop
+      - "develop-v*"
+  push:
+    branches:
+      - develop
+      - "develop-v*"
+
+name: CI
+
+env:
+  TOOLCHAIN: nightly-2022-11-11
+
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install ${{ env.TOOLCHAIN }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN }}
+          default: true
+          components: rustfmt
+          target: wasm32-unknown-unknown
+      - name: Check formatting
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN }}
+          command: fmt
+          args: --all -- --check
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v2
+      - name: Install ${{ env.TOOLCHAIN }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN }}
+          default: true
+          components: rustfmt
+          target: wasm32-unknown-unknown
+      - name: Check formatting
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN }}
+          command: build
+          args: --release
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v2
+      - name: Install ${{ env.TOOLCHAIN }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN }}
+          default: true
+          components: rustfmt
+          target: wasm32-unknown-unknown
+      - name: Check formatting
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN }}
+          command: test
+          args: -p sc-block-builder-ver -p sc-basic-authorship-ver -p frame-executive -p frame-system -p sc-consensus-slots -p sc-consensus-aura
+

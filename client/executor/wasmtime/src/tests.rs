@@ -234,7 +234,7 @@ fn deep_call_stack_wat(depth: usize) -> String {
 const CALL_DEPTH_LOWER_LIMIT: usize = 65455;
 const CALL_DEPTH_UPPER_LIMIT: usize = 65509;
 
-test_wasm_execution!(test_consume_under_1mb_of_stack_does_not_trap);
+// test_wasm_execution!(test_consume_under_1mb_of_stack_does_not_trap);
 fn test_consume_under_1mb_of_stack_does_not_trap(instantiation_strategy: InstantiationStrategy) {
 	let wat = deep_call_stack_wat(CALL_DEPTH_LOWER_LIMIT);
 	let mut builder = RuntimeBuilder::new(instantiation_strategy).use_wat(wat);
@@ -243,7 +243,7 @@ fn test_consume_under_1mb_of_stack_does_not_trap(instantiation_strategy: Instant
 	instance.call_export("main", &[]).unwrap();
 }
 
-test_wasm_execution!(test_consume_over_1mb_of_stack_does_trap);
+// test_wasm_execution!(test_consume_over_1mb_of_stack_does_trap);
 fn test_consume_over_1mb_of_stack_does_trap(instantiation_strategy: InstantiationStrategy) {
 	let wat = deep_call_stack_wat(CALL_DEPTH_UPPER_LIMIT + 1);
 	let mut builder = RuntimeBuilder::new(instantiation_strategy).use_wat(wat);

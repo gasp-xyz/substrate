@@ -73,7 +73,8 @@ use sp_runtime::{
 	traits::{
 		self, AtLeast32Bit, AtLeast32BitUnsigned, BadOrigin, BlockNumberProvider, Bounded,
 		CheckEqual, Dispatchable, Hash, Lookup, LookupError, MaybeDisplay,
-		MaybeSerializeDeserialize, Member, One, Saturating, SimpleBitOps, StaticLookup, Zero,
+		MaybeSerializeDeserialize, Member, One, SaturatedConversion, Saturating, SimpleBitOps,
+		StaticLookup, Zero,
 	},
 	DispatchError, RuntimeDebug,
 };
@@ -88,7 +89,8 @@ use frame_support::{
 		extract_actual_pays_fee, extract_actual_weight, DispatchClass, DispatchInfo,
 		DispatchResult, DispatchResultWithPostInfo, PerDispatchClass,
 	},
-	storage::{self, StorageStreamIter},
+	ensure,
+	storage::{self, bounded_vec::BoundedVec, StorageStreamIter},
 	traits::{
 		ConstU32, Contains, EnsureOrigin, Get, HandleLifetime, OnKilledAccount, OnNewAccount,
 		OriginTrait, PalletInfo, SortedMembers, StoredMap, TypedGet,
@@ -103,6 +105,7 @@ use sp_weights::{RuntimeDbWeight, Weight};
 use frame_support::traits::GenesisBuild;
 #[cfg(any(feature = "std", test))]
 use sp_io::TestExternalities;
+use sp_ver::EncodedTx;
 
 pub mod limits;
 #[cfg(test)]
@@ -119,15 +122,20 @@ pub mod weights;
 pub mod migrations;
 
 pub use extensions::{
-	check_genesis::CheckGenesis, check_mortality::CheckMortality,
-	check_non_zero_sender::CheckNonZeroSender, check_nonce::CheckNonce,
-	check_spec_version::CheckSpecVersion, check_tx_version::CheckTxVersion,
-	check_weight::CheckWeight,
+	check_genesis::CheckGenesis,
+	check_mortality::CheckMortality,
+	check_non_zero_sender::CheckNonZeroSender,
+	check_nonce::CheckNonce,
+	check_spec_version::CheckSpecVersion,
+	check_tx_version::CheckTxVersion,
+	check_weight::{calculate_consumed_weight, CheckWeight},
 };
 // Backward compatible re-export.
 pub use extensions::check_mortality::CheckMortality as CheckEra;
 pub use frame_support::dispatch::RawOrigin;
 pub use weights::WeightInfo;
+
+pub type StorageQueueLimit = frame_support::traits::ConstU32<2>;
 
 const LOG_TARGET: &str = "runtime::system";
 
@@ -371,11 +379,41 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// Persists list of encoded txs into the storage queue. There is an dedicated
+		/// check in [Executive](https://storage.googleapis.com/mangata-docs-node/frame_executive/struct.Executive.html) that verifies that passed binary data can be
+		/// decoded into extrinsics.
+		#[pallet::call_index(0)]
+		#[pallet::weight((
+			0,
+			DispatchClass::Mandatory
+		))]
+		pub fn enqueue_txs(
+			origin: OriginFor<T>,
+			txs: Vec<(Option<T::AccountId>, EncodedTx)>,
+		) -> DispatchResultWithPostInfo {
+			ensure_none(origin)?;
+			assert!(
+				!DidStoreTxs::<T>::get(),
+				"enqueue_txs inherent can only be called once per block"
+			);
+			DidStoreTxs::<T>::put(true);
+			ensure!(txs.is_empty() || Self::can_enqueue_txs(), Error::<T>::StorageQueueFull);
+			let hashes =
+				txs.iter().map(|(_, data)| T::Hashing::hash(&data[..])).collect::<Vec<_>>();
+			Self::deposit_log(generic::DigestItem::Other(hashes.encode()));
+			let count = txs.len() as u64;
+			Self::store_txs(txs);
+			if count > 0u64 {
+				Self::deposit_event(Event::TxsEnqueued { count });
+			}
+			Ok(().into())
+		}
+
 		/// Make some on-chain remark.
 		///
 		/// ## Complexity
 		/// - `O(1)`
-		#[pallet::call_index(0)]
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::SystemWeightInfo::remark(_remark.len() as u32))]
 		pub fn remark(origin: OriginFor<T>, _remark: Vec<u8>) -> DispatchResultWithPostInfo {
 			ensure_signed_or_root(origin)?;
@@ -383,7 +421,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of pages in the WebAssembly environment's heap.
-		#[pallet::call_index(1)]
+		#[pallet::call_index(2)]
 		#[pallet::weight((T::SystemWeightInfo::set_heap_pages(), DispatchClass::Operational))]
 		pub fn set_heap_pages(origin: OriginFor<T>, pages: u64) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
@@ -396,7 +434,7 @@ pub mod pallet {
 		///
 		/// ## Complexity
 		/// - `O(C + S)` where `C` length of `code` and `S` complexity of `can_set_code`
-		#[pallet::call_index(2)]
+		#[pallet::call_index(3)]
 		#[pallet::weight((T::BlockWeights::get().max_block, DispatchClass::Operational))]
 		pub fn set_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
@@ -409,7 +447,7 @@ pub mod pallet {
 		///
 		/// ## Complexity
 		/// - `O(C)` where `C` length of `code`
-		#[pallet::call_index(3)]
+		#[pallet::call_index(4)]
 		#[pallet::weight((T::BlockWeights::get().max_block, DispatchClass::Operational))]
 		pub fn set_code_without_checks(
 			origin: OriginFor<T>,
@@ -421,7 +459,7 @@ pub mod pallet {
 		}
 
 		/// Set some items of storage.
-		#[pallet::call_index(4)]
+		#[pallet::call_index(5)]
 		#[pallet::weight((
 			T::SystemWeightInfo::set_storage(items.len() as u32),
 			DispatchClass::Operational,
@@ -438,7 +476,7 @@ pub mod pallet {
 		}
 
 		/// Kill some items from storage.
-		#[pallet::call_index(5)]
+		#[pallet::call_index(6)]
 		#[pallet::weight((
 			T::SystemWeightInfo::kill_storage(keys.len() as u32),
 			DispatchClass::Operational,
@@ -455,7 +493,7 @@ pub mod pallet {
 		///
 		/// **NOTE:** We rely on the Root origin to provide us the number of subkeys under
 		/// the prefix we are removing to accurately calculate the weight of this function.
-		#[pallet::call_index(6)]
+		#[pallet::call_index(7)]
 		#[pallet::weight((
 			T::SystemWeightInfo::kill_prefix(_subkeys.saturating_add(1)),
 			DispatchClass::Operational,
@@ -471,7 +509,7 @@ pub mod pallet {
 		}
 
 		/// Make some on-chain remark and emit event.
-		#[pallet::call_index(7)]
+		#[pallet::call_index(8)]
 		#[pallet::weight(T::SystemWeightInfo::remark_with_event(remark.len() as u32))]
 		pub fn remark_with_event(
 			origin: OriginFor<T>,
@@ -499,6 +537,8 @@ pub mod pallet {
 		KilledAccount { account: T::AccountId },
 		/// On on-chain remark happened.
 		Remarked { sender: T::AccountId, hash: T::Hash },
+		/// On stored txs
+		TxsEnqueued { count: u64 },
 	}
 
 	/// Error for the System pallet
@@ -520,6 +560,8 @@ pub mod pallet {
 		NonZeroRefCount,
 		/// The origin filter prevent the call to be dispatched.
 		CallFiltered,
+		/// the storage queue is empty and cannot accept any new txs
+		StorageQueueFull,
 	}
 
 	/// Exposed trait-generic origin type.
@@ -556,6 +598,52 @@ pub mod pallet {
 	#[pallet::getter(fn block_hash)]
 	pub type BlockHash<T: Config> =
 		StorageMap<_, Twox64Concat, T::BlockNumber, T::Hash, ValueQuery>;
+
+	/// Map of block numbers to block shuffling seeds
+	#[pallet::storage]
+	#[pallet::getter(fn block_seed)]
+	pub type BlockSeed<T: Config> = StorageValue<_, sp_core::H256, ValueQuery>;
+
+	/// Storage queue is used for storing transactions in blockchain itself.
+	/// Main reason for that storage entry is fact that upon VER block `N` execution it is
+	/// required to fetch & executed transactions from previous block (`N-1`) but due to origin
+	/// substrate design blocks & extrinsics are stored in rocksDB database that is not accessible
+	/// from runtime part of the node (see [Substrate architecture](https://storage.googleapis.com/mangata-docs-node/frame_executive/struct.Executive.html)) what makes it impossible to properly implement block
+	/// execution logic. As an solution blockchain runtime storage was selected as buffer for txs
+	/// waiting for execution. Main advantage of such approach is fact that storage state is public
+	/// so its impossible to manipulate data stored in there. Storage queue is implemented as double
+	/// buffered queue - to solve problem of rare occasions where due to different reasons some txs
+	/// that were included in block `N` are not able to be executed in a following block `N+1` (good
+	/// example is new session hook/event that by design consumes whole block capacity).
+	///
+	///
+	/// # Overhead
+	/// Its worth to notice that storage queue adds only single storage write, as list of all txs
+	/// is stored as single value (encoded list of txs) maped to single key (block number)
+	///
+	/// # Storage Qeueue interaction
+	/// There are two ways to interact with storage queue:
+	/// - enqueuing new txs using [`Pallet::enqueue_txs`] inherent
+	/// - poping txs from the queue using [`Pallet::pop_txs`] that is exposed throught RuntimeApi
+	///   call
+	#[pallet::storage]
+	#[pallet::unbounded]
+	pub type StorageQueue<T: Config> = StorageValue<
+		_,
+		BoundedVec<
+			(T::BlockNumber, Option<u32>, Vec<(Option<T::AccountId>, EncodedTx)>),
+			StorageQueueLimit,
+		>,
+		ValueQuery,
+	>;
+
+	/// Map of block numbers to block shuffling seeds
+	#[pallet::storage]
+	pub type DidStoreTxs<T: Config> = StorageValue<_, bool, ValueQuery>;
+
+	/// Map of block numbers to block shuffling seeds
+	#[pallet::storage]
+	pub type TxPrevalidation<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	/// Extrinsics data for the current block (maps an extrinsic's index to its data).
 	#[pallet::storage]
@@ -646,6 +734,7 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
 			<BlockHash<T>>::insert::<_, T::Hash>(T::BlockNumber::zero(), hash69());
+			<BlockSeed<T>>::put::<sp_core::H256>(Default::default());
 			<ParentHash<T>>::put::<T::Hash>(hash69());
 			<LastRuntimeUpgrade<T>>::put(LastRuntimeUpgradeInfo::from(T::Version::get()));
 			<UpgradedToU32RefCount<T>>::put(true);
@@ -1317,6 +1406,124 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
+	/// store seed and shuffle extrinsics from precedesing block
+	pub fn set_block_seed(seed: &sp_core::H256) {
+		sp_runtime::runtime_logger::RuntimeLogger::init();
+		<BlockSeed<T>>::put(seed);
+		let mut queue = <StorageQueue<T>>::get();
+		let current_block = Self::block_number().saturated_into::<u32>();
+		log::debug!( target: "runtime::ver", "storing seed {} for block {}", seed, current_block);
+		if let Some((nr, index, txs)) = queue.last_mut() {
+			if Self::block_number() == *nr + One::one() {
+				// index is only set when txs has been shuffled already
+				assert!(index.is_none());
+				let shuffled = extrinsic_shuffler::shuffle_using_seed(txs.clone(), seed);
+				let _ = sp_std::mem::replace(txs, shuffled);
+				let _ = sp_std::mem::replace(index, Some(0));
+			}
+		}
+		<StorageQueue<T>>::put(queue);
+	}
+
+	// part of block creation mechanims, used to ignore nonces when prevalidating txs
+	pub fn set_prevalidation() {
+		TxPrevalidation::<T>::put(true);
+	}
+
+	pub fn store_txs(txs: Vec<(Option<T::AccountId>, EncodedTx)>) {
+		let block_number = Self::block_number().saturated_into::<u32>();
+		sp_runtime::runtime_logger::RuntimeLogger::init();
+		if !txs.is_empty() {
+			log::debug!( target: "runtime::ver", "storing {} txs at block {}", block_number, txs.len() );
+			let mut queue = <StorageQueue<T>>::take();
+			queue.try_push((Self::block_number(), None, txs)).unwrap();
+			<StorageQueue<T>>::put(queue);
+		} else {
+			log::debug!( target: "runtime::ver", "no txs to store at block {}", block_number);
+		}
+	}
+
+	pub fn can_enqueue_txs() -> bool {
+		let queue = <StorageQueue<T>>::get();
+		<StorageQueueLimit as Get<u32>>::get() > queue.len() as u32
+	}
+
+	/// returns list of all not executed txs held in storage queue at the moment
+	pub fn enqueued_blocks_count() -> u64 {
+		<StorageQueue<T>>::get().len() as u64
+	}
+
+	/// returns amount of txs in storage queue signed by particular user
+	pub fn enqueued_txs_count(acc: &T::AccountId) -> usize {
+		let queue = <StorageQueue<T>>::get();
+		queue
+			.iter()
+			.map(|(_, _, txs)| txs)
+			.flatten()
+			.filter(|(who, _)| who.clone() == Some(acc.clone()))
+			.count()
+	}
+
+	pub fn get_previous_blocks_txs() -> Vec<Vec<u8>> {
+		let previous_block = Self::current_block_number() - One::one();
+		let queue = <StorageQueue<T>>::get();
+		queue
+			.iter()
+			.filter_map(|block| match block {
+				(block_nr, Some(exec_index), txs) if *block_nr <= previous_block =>
+					Some(txs.iter().skip(*exec_index as usize).map(|(_, tx)| tx)),
+				_ => None,
+			})
+			.flatten()
+			.cloned()
+			.collect::<Vec<_>>()
+	}
+
+	/// Dequeue particular number of txs from storage queue.
+	/// It modifies the storage
+	pub fn pop_txs(mut len: usize) -> Vec<EncodedTx> {
+		sp_runtime::runtime_logger::RuntimeLogger::init();
+		let mut result: Vec<_> = Vec::new();
+		let mut fully_executed_blocks = 0;
+		let mut queue = <StorageQueue<T>>::take();
+		if queue.is_empty() {
+			log::debug!( target: "runtime::ver", "popping {} txs from storage queue - queue is empty!" , len);
+		} else {
+			log::debug!( target: "runtime::ver", "popping {} txs from storage queue" , len);
+		}
+
+		for (nr, index, txs) in queue.iter_mut() {
+			if len == 0 {
+				break
+			}
+
+			if let Some(id) = index {
+				log::debug!( target: "runtime::ver", "block #{}, found {}/{}", nr.clone().saturated_into::<u32>(), txs.len() - (*id as usize), len);
+				let count = sp_std::cmp::min(txs.len() - (*id) as usize, len) as usize;
+				let last_index = *id as usize + count;
+				if last_index == txs.len() {
+					fully_executed_blocks += 1;
+					log::debug!( target: "runtime::ver", "block {} has been fully executed", nr.clone().saturated_into::<u32>());
+				}
+				result.extend_from_slice(&txs[*id as usize..last_index]);
+				*id += count as u32;
+				len -= count;
+				log::debug!( target: "runtime::ver", "fetched {} tx from block {}", count, nr.clone().saturated_into::<u32>());
+			} else {
+				log::debug!( target: "runtime::ver", "unshuffled block found {}", nr.clone().saturated_into::<u32>());
+				break
+			}
+		}
+
+		if fully_executed_blocks > 0 {
+			let size_before = queue.len();
+			queue.drain(0..fully_executed_blocks);
+			log::debug!( target: "runtime::ver", "{} blocks to be removed from queue, len {} -> {}", fully_executed_blocks, size_before, queue.len());
+		}
+		<StorageQueue<T>>::put(queue);
+		result.iter().map(|(_, data)| data.clone()).collect()
+	}
+
 	/// Start the execution of a particular block.
 	pub fn initialize(number: &T::BlockNumber, parent_hash: &T::Hash, digest: &generic::Digest) {
 		// populate environment
@@ -1371,6 +1578,7 @@ impl<T: Config> Pallet<T> {
 		);
 		ExecutionPhase::<T>::kill();
 		AllExtrinsicsLen::<T>::kill();
+		DidStoreTxs::<T>::kill();
 
 		// The following fields
 		//

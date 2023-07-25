@@ -44,7 +44,7 @@ use sc_consensus_slots::{
 };
 use sc_telemetry::TelemetryHandle;
 use sp_api::{Core, ProvideRuntimeApi};
-use sp_application_crypto::AppPublic;
+use sp_application_crypto::{AppPublic, ByteArray};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{BlockOrigin, Environment, Error as ConsensusError, Proposer, SelectChain};
 use sp_consensus_slots::Slot;
@@ -458,6 +458,14 @@ where
 			sc_consensus_slots::SlotLenienceType::Exponential,
 			self.logging_target(),
 		)
+	}
+
+	fn keystore(&self) -> KeystorePtr {
+		self.keystore.clone()
+	}
+
+	fn get_key(&self, claim: &Self::Claim) -> sp_core::sr25519::Public {
+		claim.as_slice().try_into().unwrap()
 	}
 }
 

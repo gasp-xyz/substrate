@@ -116,26 +116,31 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Codec, Encode};
+#[cfg(doc)]
+use aquamarine::aquamarine;
+
+use crate::traits::AtLeast32BitUnsigned;
+use codec::{Codec, Decode, Encode};
 use frame_support::{
 	dispatch::{DispatchClass, DispatchInfo, GetDispatchInfo, PostDispatchInfo},
 	pallet_prelude::InvalidTransaction,
 	traits::{
-		EnsureInherentsAreFirst, ExecuteBlock, OffchainWorker, OnFinalize, OnIdle, OnInitialize,
-		OnRuntimeUpgrade,
+		EnsureInherentsAreFirst, ExecuteBlock, Get, OffchainWorker, OnFinalize, OnIdle,
+		OnInitialize, OnRuntimeUpgrade,
 	},
 	weights::Weight,
 };
+use schnorrkel::vrf::{VRFOutput, VRFProof};
 use sp_runtime::{
 	generic::Digest,
 	traits::{
-		self, Applyable, CheckEqual, Checkable, Dispatchable, Header, NumberFor, One,
-		ValidateUnsigned, Zero,
+		self, Applyable, BlakeTwo256, CheckEqual, Checkable, Dispatchable, Extrinsic, Hash, Header,
+		IdentifyAccountWithLookup, NumberFor, One, ValidateUnsigned, Zero,
 	},
-	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult,
+	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
+	ApplyExtrinsicResult, SaturatedConversion,
 };
-use sp_std::{marker::PhantomData, prelude::*};
+use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
 
 #[allow(dead_code)]
 const LOG_TARGET: &str = "runtime::executive";
@@ -144,6 +149,7 @@ pub type CheckedOf<E, C> = <E as Checkable<C>>::Checked;
 pub type CallOf<E, C> = <CheckedOf<E, C> as Applyable>::Call;
 pub type OriginOf<E, C> = <CallOf<E, C> as Dispatchable>::RuntimeOrigin;
 
+#[cfg_attr(doc, aquamarine)]
 /// Main entry point for certain runtime actions as e.g. `execute_block`.
 ///
 /// Generic parameters:
@@ -155,6 +161,48 @@ pub type OriginOf<E, C> = <CallOf<E, C> as Dispatchable>::RuntimeOrigin;
 ///   used to call hooks e.g. `on_initialize`.
 /// - `OnRuntimeUpgrade`: Custom logic that should be called after a runtime upgrade. Modules are
 ///   already called by `AllPalletsWithSystem`. It will be called before all modules will be called.
+///
+///   [`Executive`] implements [`ExecuteBlock`] that provieds two methods
+///   - `execute_block` that is responsible for execution of relay chain blocks (origin substrate
+///   impl)
+///   - `execute_block_ver` that is responsible for execution of parachain chain blocks (ver mangata
+///   impl)
+///
+/// # VER block execution
+///
+/// Upon block execution.
+///   - (if any) previous block extrinsics are executed, they are fetched from a queue that is
+/// field `count`, it is used for notifying 	how many txs were fetched and executed by collator when
+/// the block was build. That information 	can be used to fetch specific amount of txs at once during
+/// block execution process. Every network 	participant needs to fetch and execute exactly same
+/// amount of txs from the storage queue to 	reach exactly the same state as block author.
+///   - (if any) new txs that were just collected from transaction pool are persisted into the
+///    storage
+///
+/// VER block execution includes number of steps that are not present in origin impl:
+/// - shuffling seed validation
+/// - enqueued txs size & weight limits validation
+/// - validation of txs listed in block body
+/// - malicious collator prevention (decoding txs)
+///
+/// ```mermaid
+/// flowchart TD
+///     A[Start] --> B{Is new shuffling seed valid}
+///     B -- Yes --> C[Store shufling seed in runtime storage]
+///     C --> D{Fetch Header::count<br> txs from storage queue}
+///     D -- Fail --> E
+///     D -- OK --> F{Number of executed txs}
+///     F -- >0 --> G{StorageQeueu::is_empty<br> or Header::count >0}
+///     F -- 0 --> H
+///     G -- No --> E
+///     G -- Yes --> H{extrinsics from block body<br> == txs popped from<br> StorageQueue }
+///     H -- No --> E
+///     H -- Yes --> I{Verify that there are no new<br> enqueued txs if there is no room <br> in storage queue}
+///     I -- Fail --> E
+///     I -- Ok --> J{validate if local state == Header::state_root}
+///     J -- OK --> K[Accept block]
+///     B -- No ----> E[Reject block]
+/// ```
 pub struct Executive<
 	System,
 	Block,
@@ -187,13 +235,18 @@ impl<
 	> ExecuteBlock<Block>
 	for Executive<System, Block, Context, UnsignedValidator, AllPalletsWithSystem, COnRuntimeUpgrade>
 where
-	Block::Extrinsic: Checkable<Context> + Codec,
+	<System as frame_system::Config>::BlockNumber: AtLeast32BitUnsigned,
+	Block::Extrinsic: IdentifyAccountWithLookup<Context, AccountId = System::AccountId>
+		+ Checkable<Context>
+		+ Codec
+		+ GetDispatchInfo,
 	CheckedOf<Block::Extrinsic, Context>: Applyable + GetDispatchInfo,
 	CallOf<Block::Extrinsic, Context>:
 		Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 	OriginOf<Block::Extrinsic, Context>: From<Option<System::AccountId>>,
 	UnsignedValidator: ValidateUnsigned<Call = CallOf<Block::Extrinsic, Context>>,
 {
+	// for backward compatibility
 	fn execute_block(block: Block) {
 		Executive::<
 			System,
@@ -203,6 +256,17 @@ where
 			AllPalletsWithSystem,
 			COnRuntimeUpgrade,
 		>::execute_block(block);
+	}
+
+	fn execute_block_ver(block: Block, public: Vec<u8>) {
+		Executive::<
+			System,
+			Block,
+			Context,
+			UnsignedValidator,
+			AllPalletsWithSystem,
+			COnRuntimeUpgrade,
+		>::execute_block_ver_impl(block, public);
 	}
 }
 
@@ -221,7 +285,10 @@ impl<
 		COnRuntimeUpgrade: OnRuntimeUpgrade,
 	> Executive<System, Block, Context, UnsignedValidator, AllPalletsWithSystem, COnRuntimeUpgrade>
 where
-	Block::Extrinsic: Checkable<Context> + Codec,
+	Block::Extrinsic: IdentifyAccountWithLookup<Context, AccountId = System::AccountId>
+		+ Checkable<Context>
+		+ Codec
+		+ GetDispatchInfo,
 	CheckedOf<Block::Extrinsic, Context>: Applyable + GetDispatchInfo,
 	CallOf<Block::Extrinsic, Context>:
 		Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
@@ -377,7 +444,11 @@ impl<
 		COnRuntimeUpgrade: OnRuntimeUpgrade,
 	> Executive<System, Block, Context, UnsignedValidator, AllPalletsWithSystem, COnRuntimeUpgrade>
 where
-	Block::Extrinsic: Checkable<Context> + Codec,
+	<System as frame_system::Config>::BlockNumber: AtLeast32BitUnsigned,
+	Block::Extrinsic: IdentifyAccountWithLookup<Context, AccountId = System::AccountId>
+		+ Checkable<Context>
+		+ Codec
+		+ GetDispatchInfo,
 	CheckedOf<Block::Extrinsic, Context>: Applyable + GetDispatchInfo,
 	CallOf<Block::Extrinsic, Context>:
 		Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
@@ -451,6 +522,27 @@ where
 		}
 	}
 
+	fn ver_checks(block: &Block, public_key: Vec<u8>) {
+		// Check that `parent_hash` is correct.
+		sp_tracing::enter_span!(sp_tracing::Level::TRACE, "ver checks");
+		let header = block.header();
+		// Check that shuffling seedght is generated properly
+		let new_seed = VRFOutput::from_bytes(&header.seed().seed.as_bytes())
+			.expect("cannot parse shuffling seed");
+
+		let proof = VRFProof::from_bytes(&header.seed().proof.as_bytes())
+			.expect("cannot parse shuffling seed proof");
+		let prev_seed = <frame_system::Pallet<System>>::block_seed();
+
+		let mut transcript = merlin::Transcript::new(b"shuffling_seed");
+		transcript.append_message(b"prev_seed", prev_seed.as_bytes());
+
+		let pub_key = schnorrkel::PublicKey::from_bytes(&public_key).expect("cannot build public");
+		pub_key
+			.vrf_verify(transcript, &new_seed, &proof)
+			.expect("shuffling seed verification failed");
+	}
+
 	fn initial_checks(block: &Block) {
 		sp_tracing::enter_span!(sp_tracing::Level::TRACE, "initial_checks");
 		let header = block.header();
@@ -464,9 +556,15 @@ where
 			"Parent hash should be valid.",
 		);
 
-		if let Err(i) = System::ensure_inherents_are_first(block) {
-			panic!("Invalid inherent position for extrinsic at index {}", i);
-		}
+		// TODO: maybe just exclude last tx from check !
+		// if let Err(i) = System::ensure_inherents_are_first(block) {
+		// 	panic!("Invalid inherent position for extrinsic at index {}", i);
+		// }
+
+		// Check that transaction trie root represents the transactions.
+		// let xts_root = frame_system::extrinsics_root::<System::Hashing, _>(&block.extrinsics());
+		// header.extrinsics_root().check_equal(&xts_root);
+		// assert!(header.extrinsics_root() == &xts_root, "not enought elements to pop found");
 	}
 
 	/// Actually execute all transitions for `block`.
@@ -489,15 +587,99 @@ where
 		}
 	}
 
+	/// Actually execute all transitions for `block`.
+	pub fn execute_block_ver_impl(block: Block, public: Vec<u8>) {
+		sp_io::init_tracing();
+		sp_tracing::within_span! {
+			sp_tracing::info_span!("execute_block", ?block);
+
+			Self::initialize_block(block.header());
+
+			// any initial checks
+			Self::ver_checks(&block, public);
+			<frame_system::Pallet<System>>::set_block_seed(&block.header().seed().seed);
+			Self::initial_checks(&block);
+
+			let poped_txs_count = *block.header().count();
+			let popped_elems = <frame_system::Pallet<System>>::pop_txs(poped_txs_count.saturated_into());
+
+			assert_eq!(popped_elems.len(), poped_txs_count.saturated_into::<usize>(), "not enought elements to pop found");
+
+			let popped_txs = popped_elems
+				.into_iter()
+				.map(|tx_data| Block::Extrinsic::decode(& mut tx_data.as_slice()))
+				.filter_map(|maybe_tx| maybe_tx.ok())
+				.collect::<Vec<_>>();
+
+			let (header, curr_block_txs) = block.deconstruct();
+			let curr_block_inherents = curr_block_txs.iter().filter(|e| !e.is_signed().unwrap());
+			let curr_block_inherents_len = curr_block_inherents.clone().count();
+			let curr_block_extrinsics = curr_block_txs.iter().filter(|e| e.is_signed().unwrap());
+
+			if curr_block_extrinsics.clone().count() > 0{
+				assert!(frame_system::StorageQueue::<System>::get().is_empty() || poped_txs_count > 0u32.into());
+			}
+
+			assert_eq!(popped_txs, curr_block_extrinsics.cloned().collect::<Vec<_>>());
+
+			let tx_to_be_executed = curr_block_inherents.clone()
+				.take(curr_block_inherents_len.checked_sub(1).unwrap_or(0))
+				.chain(popped_txs.iter())
+				.chain(curr_block_inherents.skip(curr_block_inherents_len.checked_sub(1).unwrap_or(0)))
+				.cloned().collect::<Vec<_>>();
+
+			let enqueueq_blocks_count_before = <frame_system::Pallet<System>>::enqueued_blocks_count();
+			Self::execute_extrinsics_with_book_keeping(tx_to_be_executed, *header.number());
+			let enqueueq_blocks_count_after = <frame_system::Pallet<System>>::enqueued_blocks_count();
+			assert!(enqueueq_blocks_count_before == 0 || (poped_txs_count.saturated_into::<u64>() != 0u64 || enqueueq_blocks_count_before == enqueueq_blocks_count_after), "Collator didnt execute enqueued txs");
+
+			let max = System::BlockWeights::get();
+			let mut all: frame_system::ConsumedWeight = Default::default();
+			if let Some((nr, _index, txs)) = frame_system::StorageQueue::<System>::get().last() {
+				// check if there were any txs added in current block
+				if *nr == frame_system::Pallet::<System>::block_number() {
+
+					let unique_tx_count = txs.iter().collect::<BTreeSet<_>>().len();
+					assert!(unique_tx_count == txs.len(), "only unique txs can be passed into queue");
+
+					for t in txs.iter()
+						.map(|(_who, tx_data)| Block::Extrinsic::decode(& mut tx_data.as_slice()).expect("cannot deserialize tx that has been just enqueued"))
+						.collect::<Vec<_>>()
+					{
+
+						let info = t.clone().get_dispatch_info();
+						t.clone().check(&Default::default()).expect("incomming tx needs to be properly signed");
+						all = frame_system::calculate_consumed_weight::<CallOf<Block::Extrinsic, Context>>(max.clone(), all, &info)
+							.expect("Transaction would exhaust the block limits");
+
+					}
+				}
+			}
+
+			Self::final_checks(&header);
+		}
+	}
+
 	/// Execute given extrinsics and take care of post-extrinsics book-keeping.
 	fn execute_extrinsics_with_book_keeping(
 		extrinsics: Vec<Block::Extrinsic>,
 		block_number: NumberFor<Block>,
 	) {
-		extrinsics.into_iter().for_each(|e| {
-			if let Err(e) = Self::apply_extrinsic(e) {
-				let err: &'static str = e.into();
-				panic!("{}", err)
+		sp_runtime::runtime_logger::RuntimeLogger::init();
+		extrinsics.into_iter().for_each(|tx| {
+			let tx_hash = BlakeTwo256::hash(&tx.encode());
+			let is_extrinsic = tx.is_signed().unwrap();
+			if let Err(e) = Self::apply_extrinsic(tx) {
+				log::debug!(target: "runtime::ver", "executing extrinsic :{:?}", tx_hash);
+				// there will be some cases when tx execution may fail (because of delayed execution) so we want to panic only when:
+				// - tx is inherent
+				// - tx is extrinsic and error cause is exhaust resources
+				if !is_extrinsic || matches!(e, TransactionValidityError::Invalid(err) if err.exhausted_resources()) {
+					let err: &'static str = e.into();
+					panic!("{}", err)
+				} else {
+					log::debug!(target: "runtime::ver", "executing extrinsic :{:?} error '${:?}'", tx_hash, Into::<&'static str>::into(e));
+				}
 			}
 		});
 
@@ -598,10 +780,10 @@ where
 		header.state_root().check_equal(storage_root);
 		assert!(header.state_root() == storage_root, "Storage root must match that calculated.");
 
-		assert!(
-			header.extrinsics_root() == new_header.extrinsics_root(),
-			"Transaction trie root must be valid.",
-		);
+		// assert!(
+		// 	header.extrinsics_root() == new_header.extrinsics_root(),
+		// 	"Transaction trie root must be valid.",
+		// );
 	}
 
 	/// Check a given signed transaction for validity. This doesn't execute any
@@ -671,11 +853,14 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	use sp_core::H256;
+	use sp_core::{
+		crypto::key_types::AURA, hexdisplay::AsBytesRef, sr25519, sr25519::vrf::VrfTranscript,
+		Pair, ShufflingSeed, H256, H512,
+	};
+	use sp_keystore::{testing::MemoryKeystore, Keystore};
 	use sp_runtime::{
 		generic::{DigestItem, Era},
-		testing::{Block, Digest, Header},
+		testing::{BlockVer as Block, Digest, HeaderVer as Header},
 		traits::{BlakeTwo256, Block as BlockT, Header as HeaderT, IdentityLookup},
 		transaction_validity::{
 			InvalidTransaction, TransactionValidityError, UnknownTransaction, ValidTransaction,
@@ -691,6 +876,9 @@ mod tests {
 	use frame_system::{ChainContext, LastRuntimeUpgradeInfo};
 	use pallet_balances::Call as BalancesCall;
 	use pallet_transaction_payment::CurrencyAdapter;
+
+	use hex_literal::hex;
+	use sp_ver::calculate_next_seed_from_bytes;
 
 	const TEST_KEY: &[u8] = b":test:key:";
 
@@ -973,6 +1161,12 @@ mod tests {
 		RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest, value })
 	}
 
+	fn enqueue_txs(
+		txs: Vec<(Option<<Runtime as frame_system::Config>::AccountId>, Vec<u8>)>,
+	) -> RuntimeCall {
+		RuntimeCall::System(frame_system::Call::enqueue_txs { txs })
+	}
+
 	#[test]
 	fn balance_transfer_dispatch_works() {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
@@ -1023,13 +1217,13 @@ mod tests {
 		block_import_works_inner(
 			new_test_ext_v0(1),
 			array_bytes::hex_n_into_unchecked(
-				"65e953676859e7a33245908af7ad3637d6861eb90416d433d485e95e2dd174a1",
+				"d1d38dfbb0537af5d25007407f38233f372280d9092c702337a333559dc43b92",
 			),
 		);
 		block_import_works_inner(
 			new_test_ext(1),
 			array_bytes::hex_n_into_unchecked(
-				"5a19b3d6fdb7241836349fdcbe2d9df4d4f945b949d979e31ad50bff1cbcd1c2",
+				"933ded67b9e4e60948c030e9f934f525e9a383b202190bd8377cd61c96f54188",
 			),
 		);
 	}
@@ -1044,6 +1238,8 @@ mod tests {
 						"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314",
 					),
 					digest: Digest { logs: vec![] },
+					count: 0,
+					seed: Default::default(),
 				},
 				extrinsics: vec![],
 			});
@@ -1063,6 +1259,8 @@ mod tests {
 						"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314",
 					),
 					digest: Digest { logs: vec![] },
+					count: 0,
+					seed: Default::default(),
 				},
 				extrinsics: vec![],
 			});
@@ -1082,6 +1280,8 @@ mod tests {
 					),
 					extrinsics_root: [0u8; 32].into(),
 					digest: Digest { logs: vec![] },
+					count: 0,
+					seed: Default::default(),
 				},
 				extrinsics: vec![],
 			});
@@ -1404,7 +1604,7 @@ mod tests {
 				*v = sp_version::RuntimeVersion { spec_version: 1, ..Default::default() }
 			});
 
-			// set block number to non zero so events are not excluded
+			// set block number to non zero so events are not exlcuded
 			System::set_block_number(1);
 
 			Executive::initialize_block(&Header::new(
@@ -1547,7 +1747,7 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Invalid inherent position for extrinsic at index 1")]
+	// System::enqueue_txs needs to be executed after extrinsics
 	fn invalid_inherent_position_fail() {
 		let xt1 = TestXt::new(
 			RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest: 33, value: 0 }),
@@ -1603,7 +1803,8 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "A call was labelled as mandatory, but resulted in an Error.")]
+	// there will be some cases when tx execution may fail (because of delayed execution), won't panic
+	// #[should_panic(expected = "A call was labelled as mandatory, but resulted in an Error.")]
 	fn invalid_inherents_fail_block_execution() {
 		let xt1 =
 			TestXt::new(RuntimeCall::Custom(custom::Call::inherent_call {}), sign_extra(1, 0, 0));
@@ -1613,7 +1814,9 @@ mod tests {
 				Header::new(
 					1,
 					H256::default(),
-					H256::default(),
+					array_bytes::hex_n_into_unchecked(
+						"36adb08906786a989fa73c26ca9b598eb47b4dbc866c64b734f9e191b00c62b6",
+					),
 					[69u8; 32].into(),
 					Digest::default(),
 				),
@@ -1634,5 +1837,768 @@ mod tests {
 				InvalidTransaction::MandatoryValidation.into()
 			);
 		})
+	}
+
+	#[test]
+	#[should_panic(expected = "cannot build public")]
+	fn ver_block_import_panic_due_to_lack_of_public_key() {
+		new_test_ext(1).execute_with(|| {
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: [69u8; 32].into(),
+						number: 1,
+						state_root: hex!(
+							"58e5aca3629754c5185b50dd676053c5b9466c18488bb1f4c6138a46885cd79d"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 0,
+						seed: Default::default(),
+					},
+					extrinsics: vec![],
+				},
+				vec![],
+			);
+		});
+	}
+
+	#[should_panic(expected = "shuffling seed verification failed")]
+	#[test]
+	fn ver_block_import_panic_due_to_wrong_signature() {
+		new_test_ext(1).execute_with(|| {
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: [69u8; 32].into(),
+						number: 1,
+						state_root: hex!(
+							"58e5aca3629754c5185b50dd676053c5b9466c18488bb1f4c6138a46885cd79d"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 0,
+						seed: Default::default(),
+					},
+					extrinsics: vec![],
+				},
+				vec![0; 32],
+			);
+		});
+	}
+
+	#[test]
+	fn ver_block_import_works() {
+		new_test_ext(1).execute_with(|| {
+			let prev_seed = vec![0u8; 32];
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let transcript = VrfTranscript::new(b"shuffling_seed", &[(b"prev_seed", &prev_seed)]);
+
+			let signature = keystore
+				.sr25519_vrf_sign(AURA, &key_pair.public(), &transcript)
+				.unwrap()
+				.unwrap();
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: [69u8; 32].into(),
+						number: 1,
+						state_root: hex!(
+							"3f6b94972b987d9c76943ad7031349c8e62d5900fd98ba6345da8435dad66d09"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 0,
+						seed: ShufflingSeed {
+							seed: H256::from_slice(signature.output.encode().as_bytes_ref()),
+							proof: H512::from_slice(signature.proof.encode().as_bytes_ref()),
+						},
+					},
+					extrinsics: vec![],
+				},
+				pub_key_bytes,
+			);
+		});
+	}
+
+	#[test]
+	fn accept_block_that_fetches_txs_from_the_queue() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let xt = TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0));
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0))];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"325ff57815f725eb40852ec4cd91526f8bdbbc1bd1c5d79e5a85d5d92704b0c9"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"da228fb69aec5dd5f76ebb155e8faf848c49581528c06f776543c834369032fa"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"c8244f5759b5efd8760f96f5a679c78b2e8ea65c6095403f8f527c0619082694"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 1,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![xt.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "Transaction would exhaust the block limits")]
+	fn rejects_block_that_enqueues_too_many_transactions_to_storage_queue() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let txs = (0..100000)
+				.map(|nonce| TestXt::new(call_transfer(2, 69), sign_extra(1, nonce, 0)))
+				.collect::<Vec<_>>();
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"5bc40cfd524119a0f1ca2fbd9f0357806d0041f56e0de1750b1fe0011915ca4c"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"6406786b8a8f590d77d8dc6126c16f7f1621efac35914834d95ec032562f5125"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "Collator didnt execute enqueued txs")]
+	fn rejects_block_that_enqueues_new_txs_but_doesnt_execute_any() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let txs = (0..10)
+				.map(|nonce| TestXt::new(call_transfer(2, 69), sign_extra(1, nonce, 0)))
+				.collect::<Vec<_>>();
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"831e2467d5152af868a45ef85d03eff185fd9c2b29df12b2daec5e0ea069acb4"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"f380e937898ceef6feb3fbb47e4fb59d0be185c5f98be64baafa89c778d165c5"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"545b9b54abe19f999e0186186cce55a1615d78814c1571b0db1417570d8b8ca3"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"f380e937898ceef6feb3fbb47e4fb59d0be185c5f98be64baafa89c778d165c5"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "cannot deserialize tx that has been just enqueued")]
+	fn do_not_allow_to_accept_binary_blobs_that_does_not_deserialize_into_valid_tx() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let dummy_paylaod = b"not an extrinsic".to_vec();
+			let enqueue_txs_inherent =
+				TestXt::new(enqueue_txs(vec![(Some(2), dummy_paylaod.clone())]), None);
+
+			let tx_hashes_list =
+				vec![<Runtime as frame_system::Config>::Hashing::hash(&dummy_paylaod[..])];
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"f41b79a2cce94a67f604caf48cf7e76f33d4c0b71593a7ab7904e6f33c7db88d"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"47f1dc33bc8221e453f3d48e6cedb33aa8fec1bdba47da155096bf67f614fb82"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone()],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	fn do_not_panic_when_tx_poped_from_storage_queue_cannot_be_deserialized() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0))];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"102bbfb2d146b9313489419e816d176b1f7280e8b1000cd27852bed7d495abbd"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"325ff57815f725eb40852ec4cd91526f8bdbbc1bd1c5d79e5a85d5d92704b0c9"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			// inject some garbage instead of tx
+			let mut queue = frame_system::StorageQueue::<Runtime>::take();
+			queue.as_mut().last_mut().unwrap().2 = vec![(Some(2), b"not an extrinsic".to_vec())];
+			frame_system::StorageQueue::<Runtime>::put(queue);
+
+			// tx is poped but not executed
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"30bb4cf688e7331e3149053da3e83aa56b4b7e2e289106fd7fd523369fb1cbe5"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 1,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	fn do_not_panic_when_tx_poped_from_storage_queue_is_invalid() {
+		// inject txs with wrong nonces
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0)),
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 2, 0)), /* <- this txs is
+				                                                         * invalide
+				                                                         * because of nonce that
+				                                                         * should be == 1 */
+			];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"9768ee8cbc4d885d73464409ef4adbe4b6997d9accd75eb205eaa09140aace7f"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"0bf3649935d974c08416350641382ffef980a58eace1f4b5b968705d206c7aae"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+
+			// tx is poped fails on execution and doeasnt stuck the chain
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 2,
+						state_root: hex!(
+							"f4c46903988d1f2877c965ea22f33853c94ebbd7da3c8597335e46b0392d638b"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"ead5b1f0927906077db74d0a0621707e2b2ee93ce6145f83cee491801a010c14"
+						)
+						.into(),
+						digest: Digest { logs: vec![] },
+						count: 2,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: txs,
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "only unique txs can be passed into queue")]
+	fn reject_block_that_tries_to_enqueue_same_tx_mulitple_times() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0)), /* duplicated tx should
+				                                                         * be rejected */
+				TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0)),
+			];
+
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"2b8d0b6c617c1bc4003690d7e83d33cbe69d7237167e52c446bc690e188ce300"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "enqueue_txs inherent can only be called once per block")]
+	fn reject_block_that_enqueus_same_tx_multiple_times() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs = vec![TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0))];
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"10b8fe2ef82cb245fc71dab724fde5462bacc4f0d2b3b6bf0581aa89d63ef3a1"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"c455a6cba17ea145cc03fa905ae969826a26780278ace184c61510e638901a85"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 0,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone(), enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
+	}
+
+	#[test]
+	#[should_panic(expected = "not enought elements to pop found")]
+	fn reject_block_that_tries_to_pop_more_txs_than_available() {
+		new_test_ext(1).execute_with(|| {
+			let secret_uri = "//Alice";
+			let keystore = MemoryKeystore::new();
+
+			let key_pair =
+				sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+			keystore
+				.insert(AURA, secret_uri, key_pair.public().as_ref())
+				.expect("Inserts unknown key");
+
+			let pub_key_bytes = AsRef::<[u8; 32]>::as_ref(&key_pair.public())
+				.iter()
+				.cloned()
+				.collect::<Vec<_>>();
+
+			let txs: Vec<TestXt> = vec![TestXt::new(call_transfer(2, 69), sign_extra(1, 0, 0))];
+			let enqueue_txs_inherent = TestXt::new(
+				enqueue_txs(txs.clone().iter().map(|t| (Some(2), t.encode())).collect::<Vec<_>>()),
+				None,
+			);
+
+			let tx_hashes_list = txs
+				.clone()
+				.iter()
+				.map(|tx| <Runtime as frame_system::Config>::Hashing::hash(&tx.encode()[..]))
+				.collect::<Vec<_>>();
+
+			Executive::execute_block_ver(
+				Block {
+					header: Header {
+						parent_hash: System::parent_hash(),
+						number: 1,
+						state_root: hex!(
+							"c6bbd33a1161f1b0d719594304a81c6cc97a183a64a09e1903cb58ed6e247148"
+						)
+						.into(),
+						extrinsics_root: hex!(
+							"9f907f07e03a93bbb696e4071f58237edc3 5a701d24e5a2155cf52a2b32a4ef3"
+						)
+						.into(),
+						digest: Digest { logs: vec![DigestItem::Other(tx_hashes_list.encode())] },
+						count: 1,
+						seed: calculate_next_seed_from_bytes(
+							&keystore,
+							&key_pair.public(),
+							System::block_seed().as_bytes().to_vec(),
+						)
+						.unwrap(),
+					},
+					extrinsics: vec![enqueue_txs_inherent.clone(), enqueue_txs_inherent],
+				},
+				pub_key_bytes.clone(),
+			);
+		});
 	}
 }

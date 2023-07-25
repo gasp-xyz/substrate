@@ -13,6 +13,7 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+aquamarine = "0.1.12"
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
 	"derive",
 ] }
@@ -25,21 +26,29 @@ sp-io = { version = "7.0.0", default-features = false, path = "../../primitives/
 sp-runtime = { version = "7.0.0", default-features = false, path = "../../primitives/runtime" }
 sp-std = { version = "5.0.0", default-features = false, path = "../../primitives/std" }
 sp-tracing = { version = "6.0.0", default-features = false, path = "../../primitives/tracing" }
+schnorrkel = { version = "0.9.1", features = ["preaudit_deprecated", "u64_backend"], default-features = false}
+merlin = { version = "2.0", default-features = false }
+extrinsic-shuffler = { version='4.0.0-dev', default-features = false, path = '../../primitives/shuffler'}
+log = { version = "0.4.17", default-features = false }
 
 [dev-dependencies]
+hex-literal = "0.3.4"
 array-bytes = "4.1"
+sp-keystore = { version = "0.13.0", path = "../../primitives/keystore" }
 pallet-balances = { version = "4.0.0-dev", path = "../balances" }
 pallet-transaction-payment = { version = "4.0.0-dev", path = "../transaction-payment" }
 sp-core = { version = "7.0.0", path = "../../primitives/core" }
 sp-inherents = { version = "4.0.0-dev", path = "../../primitives/inherents" }
 sp-io = { version = "7.0.0", path = "../../primitives/io" }
 sp-version = { version = "5.0.0", path = "../../primitives/version" }
+sp-ver = { path = "../../primitives/ver" , features=["helpers"]}
 
 [features]
 default = ["std"]
 with-tracing = ["sp-tracing/with-tracing"]
 std = [
 	"codec/std",
+	"log/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -48,5 +57,8 @@ std = [
 	"sp-runtime/std",
 	"sp-std/std",
 	"sp-tracing/std",
+	"sp-ver/std",
+	"schnorrkel/std",
+	"extrinsic-shuffler/std",
 ]
 try-runtime = ["frame-support/try-runtime", "frame-try-runtime/try-runtime", "sp-runtime/try-runtime"]

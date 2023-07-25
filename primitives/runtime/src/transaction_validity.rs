@@ -42,6 +42,10 @@ pub enum InvalidTransaction {
 	Call,
 	/// General error to do with the inability to pay some fees (e.g. account balance too low).
 	Payment,
+	/// General error to do with the inability to pay some fees in non native currencty
+	NonNativePayment,
+	/// General error to do with the inability calculate fee in non native currency
+	NonNativePaymentCalculation,
 	/// General error to do with the transaction not yet being valid (e.g. nonce too high).
 	Future,
 	/// General error to do with the transaction being outdated (e.g. nonce too low).
@@ -82,6 +86,16 @@ pub enum InvalidTransaction {
 	MandatoryValidation,
 	/// The sending address is disabled or known to be invalid.
 	BadSigner,
+	/// The swap prevalidation has failed
+	SwapPrevalidation,
+	/// Fee lock processing has failed either due to not enough funds to reserve or an unexpected
+	/// error
+	ProcessFeeLock,
+	/// Unlock fee has failed either due to no fee locks or fee lock cant be unlocked yet or an
+	/// unexpected error
+	UnlockFee,
+	/// Tipping is not allowed for swaps and multiswaps
+	TippingNotAllowedForSwaps,
 }
 
 impl InvalidTransaction {
@@ -107,12 +121,20 @@ impl From<InvalidTransaction> for &'static str {
 			InvalidTransaction::ExhaustsResources => "Transaction would exhaust the block limits",
 			InvalidTransaction::Payment =>
 				"Inability to pay some fees (e.g. account balance too low)",
+			InvalidTransaction::NonNativePayment =>
+				"Inability to pay some fees in non native token (e.g. account balance too low)",
+			InvalidTransaction::NonNativePaymentCalculation =>
+				"Inability to calculate fees in non native token (e.g. non existing pool, math overflow). Check node rpc for more details.",
 			InvalidTransaction::BadMandatory =>
 				"A call was labelled as mandatory, but resulted in an Error.",
 			InvalidTransaction::MandatoryValidation =>
 				"Transaction dispatch is mandatory; transactions must not be validated.",
 			InvalidTransaction::Custom(_) => "InvalidTransaction custom error",
 			InvalidTransaction::BadSigner => "Invalid signing address",
+			InvalidTransaction::SwapPrevalidation => "The swap prevalidation has failed",
+			InvalidTransaction::ProcessFeeLock => "Fee lock processing has failed either due to not enough funds to reserve or an unexpected error",
+			InvalidTransaction::UnlockFee => "Unlock fee has failed either due to no fee locks or fee lock cant be unlocked yet or an unexpected error",
+			InvalidTransaction::TippingNotAllowedForSwaps => "Tipping is not allowed for swaps and multiswaps",
 		}
 	}
 }

@@ -27,6 +27,7 @@ use substrate_cli_test_utils as common;
 
 /// `benchmark block` works for the dev runtime using the wasm executor.
 #[tokio::test]
+#[ignore = "VER for BABE not implemented"]
 async fn benchmark_block_works() {
 	let base_dir = tempdir().expect("could not create a temp dir");
 

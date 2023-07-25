@@ -25,6 +25,7 @@ use tempfile::tempdir;
 use substrate_cli_test_utils as common;
 
 #[tokio::test]
+#[ignore = "VER for BABE not implemented"]
 async fn check_block_works() {
 	let base_path = tempdir().expect("could not create a temp dir");
 

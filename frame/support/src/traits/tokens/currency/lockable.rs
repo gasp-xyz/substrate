@@ -17,7 +17,9 @@
 
 //! The lockable currency trait and some associated types.
 
-use super::{super::misc::WithdrawReasons, Currency};
+use sp_runtime::DispatchError;
+
+use super::{super::misc::WithdrawReasons, Currency, MultiTokenCurrency};
 use crate::{dispatch::DispatchResult, traits::misc::Get};
 
 /// An identifier for a lock. Used for disambiguating different locks so that
@@ -64,6 +66,50 @@ pub trait LockableCurrency<AccountId>: Currency<AccountId> {
 	fn remove_lock(id: LockIdentifier, who: &AccountId);
 }
 
+/// A currency whose accounts can have liquidity restrictions.
+pub trait MultiTokenLockableCurrency<AccountId>: MultiTokenCurrency<AccountId> {
+	/// The quantity used to denote time; usually just a `BlockNumber`.
+	type Moment;
+
+	/// The maximum number of locks a user should have on their account.
+	type MaxLocks: Get<u32>;
+
+	/// Create a new balance lock on account `who`.
+	///
+	/// If the new lock is valid (i.e. not already expired), it will push the
+	/// struct to the `Locks` vec in storage. Note that you can lock more funds
+	/// than a user has.
+	///
+	/// If the lock `id` already exists, this will update it.
+	fn set_lock(
+		currency_id: Self::CurrencyId,
+		id: LockIdentifier,
+		who: &AccountId,
+		amount: Self::Balance,
+		reasons: WithdrawReasons,
+	);
+
+	/// Changes a balance lock (selected by `id`) so that it becomes less liquid
+	/// in all parameters or creates a new one if it does not exist.
+	///
+	/// Calling `extend_lock` on an existing lock `id` differs from `set_lock`
+	/// in that it applies the most severe constraints of the two, while
+	/// `set_lock` replaces the lock with the new parameters. As in,
+	/// `extend_lock` will set:
+	/// - maximum `amount`
+	/// - bitwise mask of all `reasons`
+	fn extend_lock(
+		currency_id: Self::CurrencyId,
+		id: LockIdentifier,
+		who: &AccountId,
+		amount: Self::Balance,
+		reasons: WithdrawReasons,
+	);
+
+	/// Remove an existing lock.
+	fn remove_lock(currency_id: Self::CurrencyId, id: LockIdentifier, who: &AccountId);
+}
+
 /// A vesting schedule over a currency. This allows a particular currency to have vesting limits
 /// applied to it.
 pub trait VestingSchedule<AccountId> {
@@ -105,4 +151,107 @@ pub trait VestingSchedule<AccountId> {
 	///
 	/// NOTE: This doesn't alter the free balance of the account.
 	fn remove_vesting_schedule(who: &AccountId, schedule_index: u32) -> DispatchResult;
+}
+
+pub trait MultiTokenVestingLocks<AccountId, BlockNumber> {
+	/// The quantity used to denote time; usually just a `BlockNumber`.
+	type Moment;
+
+	/// The currency that this schedule applies to.
+	type Currency: MultiTokenCurrency<AccountId>;
+
+	/// Finds a vesting schedule with locked_at value greater than unlock_amount
+	/// Removes that old vesting schedule, adds a new one with new_locked and new_per_block
+	/// reflecting old locked_at - unlock_amount, to be unlocked by old ending block.
+	/// This does not transfer funds
+	fn unlock_tokens(
+		who: &AccountId,
+		token_id: <Self::Currency as MultiTokenCurrency<AccountId>>::CurrencyId,
+		unlock_amount: <Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+	) -> Result<
+		(BlockNumber, <Self::Currency as MultiTokenCurrency<AccountId>>::Balance),
+		DispatchError,
+	>;
+
+	/// Finds the vesting schedule with the provided index
+	/// Removes that old vesting schedule, adds a new one with new_locked and new_per_block
+	/// reflecting old locked_at - unlock_amount, to be unlocked by old ending block.
+	/// This does not transfer funds
+	fn unlock_tokens_by_vesting_index(
+		who: &AccountId,
+		token_id: <Self::Currency as MultiTokenCurrency<AccountId>>::CurrencyId,
+		vesting_index: u32,
+		unlock_some_amount_or_all: Option<
+			<Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+		>,
+	) -> Result<
+		(
+			<Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+			BlockNumber,
+			<Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+		),
+		DispatchError,
+	>;
+
+	/// Constructs a vesting schedule based on the given data starting from now
+	/// And places it into the appropriate (who, token_id) storage
+	/// This does not transfer funds
+	fn lock_tokens(
+		who: &AccountId,
+		token_id: <Self::Currency as MultiTokenCurrency<AccountId>>::CurrencyId,
+		lock_amount: <Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+		starting_block_as_balance: Option<BlockNumber>,
+		ending_block_as_balance: <Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+	) -> DispatchResult;
+}
+
+/// A vesting schedule over a currency. This allows a particular currency to have vesting limits
+/// applied to it.
+pub trait MultiTokenVestingSchedule<AccountId> {
+	/// The quantity used to denote time; usually just a `BlockNumber`.
+	type Moment;
+
+	/// The currency that this schedule applies to.
+	type Currency: MultiTokenCurrency<AccountId>;
+
+	/// Get the amount that is currently being vested and cannot be transferred out of this account.
+	/// Returns `None` if the account has no vesting schedule.
+	fn vesting_balance(
+		who: &AccountId,
+		token_id: <Self::Currency as MultiTokenCurrency<AccountId>>::CurrencyId,
+	) -> Option<<Self::Currency as MultiTokenCurrency<AccountId>>::Balance>;
+
+	/// Adds a vesting schedule to a given account.
+	///
+	/// If the account has `MaxVestingSchedules`, an Error is returned and nothing
+	/// is updated.
+	///
+	/// Is a no-op if the amount to be vested is zero.
+	///
+	/// NOTE: This doesn't alter the free balance of the account.
+	fn add_vesting_schedule(
+		who: &AccountId,
+		locked: <Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+		per_block: <Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+		starting_block: Self::Moment,
+		token_id: <Self::Currency as MultiTokenCurrency<AccountId>>::CurrencyId,
+	) -> DispatchResult;
+
+	/// Checks if `add_vesting_schedule` would work against `who`.
+	fn can_add_vesting_schedule(
+		who: &AccountId,
+		locked: <Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+		per_block: <Self::Currency as MultiTokenCurrency<AccountId>>::Balance,
+		starting_block: Self::Moment,
+		token_id: <Self::Currency as MultiTokenCurrency<AccountId>>::CurrencyId,
+	) -> DispatchResult;
+
+	/// Remove a vesting schedule for a given account.
+	///
+	/// NOTE: This doesn't alter the free balance of the account.
+	fn remove_vesting_schedule(
+		who: &AccountId,
+		token_id: <Self::Currency as MultiTokenCurrency<AccountId>>::CurrencyId,
+		schedule_index: u32,
+	) -> DispatchResult;
 }

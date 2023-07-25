@@ -63,10 +63,12 @@ sc-transaction-pool = { version = "4.0.0-dev", path = "../transaction-pool" }
 sp-transaction-pool = { version = "4.0.0-dev", path = "../../primitives/transaction-pool" }
 sc-transaction-pool-api = { version = "4.0.0-dev", path = "../transaction-pool/api" }
 sp-transaction-storage-proof = { version = "4.0.0-dev", path = "../../primitives/transaction-storage-proof" }
+ver-api = { version = "4.0.0-dev", path = "../../primitives/ver-api" }
 sc-rpc-server = { version = "4.0.0-dev", path = "../rpc-servers" }
 sc-rpc = { version = "4.0.0-dev", path = "../rpc" }
 sc-rpc-spec-v2 = { version = "0.10.0-dev", path = "../rpc-spec-v2" }
 sc-block-builder = { version = "0.10.0-dev", path = "../block-builder" }
+sc-block-builder-ver = { version = "0.10.0-dev", path = "../block-builder-ver" }
 sc-informant = { version = "0.10.0-dev", path = "../informant" }
 sc-telemetry = { version = "4.0.0-dev", path = "../telemetry" }
 sc-offchain = { version = "4.0.0-dev", path = "../offchain" }

@@ -62,11 +62,13 @@ pub mod hash;
 #[cfg(feature = "std")]
 mod hasher;
 pub mod offchain;
+mod seed;
 pub mod sr25519;
 pub mod testing;
 #[cfg(feature = "std")]
 pub mod traits;
 pub mod uint;
+pub use seed::ShufflingSeed;
 
 pub use self::{
 	hash::{convert_hash, H160, H256, H512},
@@ -440,7 +442,7 @@ macro_rules! generate_feature_enabled_macro {
 			}
 
 			// Work around for: <https://github.com/rust-lang/rust/pull/52234>
-			#[doc(hidden)] 
+			#[doc(hidden)]
 			pub use [<_ $macro_name>] as $macro_name;
 		}
 	};

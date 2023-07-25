@@ -40,8 +40,11 @@ use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_DEBUG, CONSENSUS_INFO, 
 use sp_arithmetic::traits::BaseArithmetic;
 use sp_consensus::{Proposal, Proposer, SelectChain, SyncOracle};
 use sp_consensus_slots::{Slot, SlotDuration};
-use sp_inherents::CreateInherentDataProviders;
+use sp_core::sr25519;
+use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
+use sp_keystore::{Keystore, KeystorePtr};
 use sp_runtime::traits::{Block as BlockT, HashFor, Header as HeaderT};
+use sp_ver::RandomSeedInherentDataProvider;
 use std::{
 	fmt::Debug,
 	ops::Deref,
@@ -76,6 +79,29 @@ pub trait SlotWorker<B: BlockT, Proof> {
 	/// Returns a future that resolves to a [`SlotResult`] iff a block was successfully built in
 	/// the slot. Otherwise `None` is returned.
 	async fn on_slot(&mut self, slot_info: SlotInfo<B>) -> Option<SlotResult<B, Proof>>;
+}
+
+async fn inject_inherents<'a, B: BlockT>(
+	keystore: KeystorePtr,
+	public: &'a sr25519::Public,
+	slot_info: &'a SlotInfo<B>,
+	in_data: &'a mut InherentData,
+) -> Result<(), sp_consensus::Error> {
+	let prev_seed = slot_info.chain_head.seed();
+
+	let seed = sp_ver::calculate_next_seed::<dyn Keystore>(&(*keystore), public, prev_seed)
+		.ok_or(sp_consensus::Error::StateUnavailable(String::from("signing seed failure")))?;
+
+	RandomSeedInherentDataProvider(seed)
+		.provide_inherent_data(in_data)
+		.map_err(|_| {
+			sp_consensus::Error::StateUnavailable(String::from(
+				"cannot inject RandomSeed inherent data",
+			))
+		})
+		.await?;
+
+	Ok(())
 }
 
 /// A skeleton implementation for `SlotWorker` which tries to claim a slot at
@@ -134,6 +160,9 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		slot: Slot,
 		aux_data: &Self::AuxData,
 	) -> Option<Self::Claim>;
+
+	/// reads key required for signing shuffling seed
+	fn get_key(&self, claim: &Self::Claim) -> sr25519::Public;
 
 	/// Notifies the given slot. Similar to `claim_slot`, but will be called no matter whether we
 	/// need to author blocks or not.
@@ -202,8 +231,12 @@ pub trait SimpleSlotWorker<B: BlockT> {
 		let telemetry = self.telemetry();
 		let log_target = self.logging_target();
 
-		let inherent_data =
+		let mut inherent_data =
 			Self::create_inherent_data(&slot_info, &log_target, end_proposing_at).await?;
+
+		let keystore = self.keystore().clone();
+		let key = self.get_key(&claim);
+		inject_inherents(keystore, &key, &slot_info, &mut inherent_data).await.ok()?;
 
 		let proposing_remaining_duration =
 			end_proposing_at.saturating_duration_since(Instant::now());
@@ -458,6 +491,9 @@ pub trait SimpleSlotWorker<B: BlockT> {
 
 		Some(SlotResult { block: B::new(header, body), storage_proof })
 	}
+
+	/// keystore handle
+	fn keystore(&self) -> KeystorePtr;
 }
 
 /// A type that implements [`SlotWorker`] for a type that implements [`SimpleSlotWorker`].

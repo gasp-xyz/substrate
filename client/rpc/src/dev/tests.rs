@@ -45,7 +45,7 @@ async fn block_stats_work() {
 		Some(BlockStats {
 			witness_len: 630,
 			witness_compact_len: 534,
-			block_len: 99,
+			block_len: 203, // 99 + 96(seed) + 8(count)
 			num_extrinsics: 0,
 		}),
 	);

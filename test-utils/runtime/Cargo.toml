@@ -45,6 +45,7 @@ trie-db = { version = "0.27.0", default-features = false }
 sc-service = { version = "0.10.0-dev", default-features = false, optional = true, features = ["test-helpers"], path = "../../client/service" }
 sp-state-machine = { version = "0.13.0", default-features = false, path = "../../primitives/state-machine" }
 sp-externalities = { version = "0.13.0", default-features = false, path = "../../primitives/externalities" }
+ver-api = { path = '../../primitives/ver-api', default-features = false, version = '4.0.0-dev' }
 
 # 3rd party
 cfg-if = "1.0"
@@ -97,6 +98,7 @@ std = [
 	"frame-system/std",
 	"pallet-timestamp/std",
 	"sc-service",
+	"ver-api/std",
 	"sp-consensus-grandpa/std",
 	"sp-trie/std",
 	"sp-transaction-pool/std",

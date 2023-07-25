@@ -164,6 +164,7 @@ pub enum Extrinsic {
 	OffchainIndexSet(Vec<u8>, Vec<u8>),
 	OffchainIndexClear(Vec<u8>),
 	Store(Vec<u8>),
+	EnqueueTxs(u64),
 	/// Read X times from the state some data and then panic!
 	///
 	/// Returns `Ok` if it didn't read anything.
@@ -218,6 +219,7 @@ impl BlindCheckable for Extrinsic {
 			Extrinsic::OffchainIndexSet(key, value) => Ok(Extrinsic::OffchainIndexSet(key, value)),
 			Extrinsic::OffchainIndexClear(key) => Ok(Extrinsic::OffchainIndexClear(key)),
 			Extrinsic::Store(data) => Ok(Extrinsic::Store(data)),
+			Extrinsic::EnqueueTxs(data) => Ok(Extrinsic::EnqueueTxs(data)),
 			Extrinsic::ReadAndPanic(i) => Ok(Extrinsic::ReadAndPanic(i)),
 			Extrinsic::Read(i) => Ok(Extrinsic::Read(i)),
 		}
@@ -292,7 +294,7 @@ pub type Digest = sp_runtime::generic::Digest;
 /// A test block.
 pub type Block = sp_runtime::generic::Block<Header, Extrinsic>;
 /// A test block's header.
-pub type Header = sp_runtime::generic::Header<BlockNumber, Hashing>;
+pub type Header = sp_runtime::generic::HeaderVer<BlockNumber, Hashing>;
 
 /// Run whatever tests we have.
 pub fn run_tests(mut input: &[u8]) -> Vec<u8> {
@@ -732,6 +734,34 @@ cfg_if! {
 				fn initialize_block(header: &<Block as BlockT>::Header) {
 					system::initialize_block(header)
 				}
+			}
+
+			impl ver_api::VerApi<Block> for Runtime {
+				fn get_signer(
+					_tx: <Block as BlockT>::Extrinsic,
+				) -> Option<(sp_runtime::AccountId32, u32)> {
+					None
+				}
+
+				fn is_storage_migration_scheduled() -> bool{
+					false
+				}
+
+				fn store_seed(_seed: sp_core::H256){
+				}
+
+				fn can_enqueue_txs() -> bool {
+					true
+				}
+
+
+			  fn create_enqueue_txs_inherent(txs: Vec<<Block as BlockT>::Extrinsic>) -> <Block as BlockT>::Extrinsic{
+				  //just return some garbage
+					Extrinsic::EnqueueTxs(txs.len() as u64)
+			  }
+				fn pop_txs(_count: u64) -> sp_application_crypto::Vec<sp_application_crypto::Vec<u8>> { Default::default() }
+				fn get_previous_block_txs() -> Vec<Vec<u8>>{Default::default()}
+				fn start_prevalidation() {}
 			}
 
 			impl sp_api::Metadata<Block> for Runtime {
@@ -1403,6 +1433,14 @@ mod tests {
 			(hash, block)
 		};
 
+		futures::executor::block_on(client.import(BlockOrigin::Own, block)).unwrap();
+
+		let (new_at_hash, block) = {
+			let builder = client.new_block_at(new_at_hash, Default::default(), false).unwrap();
+			let block = builder.build().unwrap().block;
+			let hash = block.header.hash();
+			(hash, block)
+		};
 		futures::executor::block_on(client.import(BlockOrigin::Own, block)).unwrap();
 
 		// Allocation of 1024k while having ~2048k should succeed.

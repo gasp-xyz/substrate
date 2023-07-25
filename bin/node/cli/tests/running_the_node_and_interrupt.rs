@@ -28,6 +28,7 @@ use tempfile::tempdir;
 use substrate_cli_test_utils as common;
 
 #[tokio::test]
+#[ignore = "VER for BABE not implemented"]
 async fn running_the_node_works_and_can_be_interrupted() {
 	common::run_with_timeout(Duration::from_secs(60 * 10), async move {
 		async fn run_command_and_kill(signal: Signal) {
@@ -69,6 +70,7 @@ async fn running_the_node_works_and_can_be_interrupted() {
 }
 
 #[tokio::test]
+#[ignore = "VER for BABE not implemented"]
 async fn running_two_nodes_with_the_same_ws_port_should_work() {
 	common::run_with_timeout(Duration::from_secs(60 * 10), async move {
 		let mut first_node = common::KillChildOnDrop(common::start_node());

@@ -25,6 +25,7 @@ use substrate_cli_test_utils as common;
 pub mod websocket_server;
 
 #[tokio::test]
+#[ignore = "VER for BABE not implemented"]
 async fn telemetry_works() {
 	common::run_with_timeout(Duration::from_secs(60 * 10), async move {
 		let config = websocket_server::Config {

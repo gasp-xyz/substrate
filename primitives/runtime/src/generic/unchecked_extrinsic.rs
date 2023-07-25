@@ -20,11 +20,11 @@
 use crate::{
 	generic::CheckedExtrinsic,
 	traits::{
-		self, Checkable, Extrinsic, ExtrinsicMetadata, IdentifyAccount, MaybeDisplay, Member,
-		SignedExtension,
+		self, Checkable, Extrinsic, ExtrinsicMetadata, IdentifyAccount, IdentifyAccountWithLookup,
+		LookupError, MaybeDisplay, Member, SignedExtension,
 	},
 	transaction_validity::{InvalidTransaction, TransactionValidityError},
-	OpaqueExtrinsic,
+	AccountId32, OpaqueExtrinsic,
 };
 use codec::{Compact, Decode, Encode, EncodeLike, Error, Input};
 use scale_info::{build::Fields, meta_type, Path, StaticTypeInfo, Type, TypeInfo, TypeParameter};
@@ -164,6 +164,24 @@ where
 			},
 			None => CheckedExtrinsic { signed: None, function: self.function },
 		})
+	}
+}
+
+impl<Lookup, Address, Call, Signature, Extra> IdentifyAccountWithLookup<Lookup>
+	for UncheckedExtrinsic<Address, Call, Signature, Extra>
+where
+	Address: Member + MaybeDisplay + Clone,
+	Signature: Member + traits::Verify + Clone,
+	<Signature as traits::Verify>::Signer: IdentifyAccount<AccountId = AccountId32>,
+	Extra: SignedExtension<AccountId = AccountId32>,
+	Lookup: traits::Lookup<Source = Address, Target = AccountId32>,
+{
+	type AccountId = AccountId32;
+	fn get_account_id(&self, lookup: &Lookup) -> Result<Option<AccountId32>, LookupError> {
+		match self.signature {
+			Some((ref signed, _, _)) => lookup.lookup(signed.clone()).map(|addr| Some(addr)),
+			None => Ok(None),
+		}
 	}
 }
 
