@@ -16,11 +16,15 @@
 // limitations under the License.
 
 //! Module to enforce private fields on `VestingInfo`.
+#[cfg(feature = "std")]
+use sp_runtime::serde::{Deserialize, Serialize};
 
 use super::*;
 
 /// Struct to encode the vesting schedule of an individual account.
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, MaxEncodedLen, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 pub struct VestingInfo<Balance, BlockNumber> {
 	/// Locked amount at genesis.
 	locked: Balance,

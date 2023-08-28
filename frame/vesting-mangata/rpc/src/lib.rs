@@ -25,7 +25,7 @@ use jsonrpsee::{
 	proc_macros::rpc,
 	types::error::{CallError, ErrorCode, ErrorObject},
 };
-use pallet_vesting_mangata_rpc_runtime_api::{VestingInfosWithLockedAt};
+use pallet_vesting_mangata_rpc_runtime_api::{VestingLockedInfo};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
@@ -38,9 +38,9 @@ use sp_runtime::{
 pub use pallet_vesting_mangata_rpc_runtime_api::VestingMangataApi as VestingMangataRuntimeApi;
 
 #[rpc(client, server)]
-pub trait VestingMangataApi<BlockHash, AccountId, TokenId, Balance, BlockNumber, ResponseTypeVestingInfosWithLockedAt> {
+pub trait VestingMangataApi<BlockHash, AccountId, TokenId, Balance, BlockNumber> {
 	#[method(name = "vesting_getVestingLockedAt")]
-	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<BlockHash>) -> RpcResult<ResponseTypeVestingInfosWithLockedAt>;
+	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<BlockHash>) -> RpcResult<Vec<(VestingLockedInfo<Balance, BlockNumber>, Balance)>>;
 }
 
 /// Provides RPC methods to query a dispatchable's class, weight and fee.
@@ -57,6 +57,22 @@ impl<C, P> VestingMangata<C, P> {
 	}
 }
 
+trait TryIntoBalance<Balance> {
+	fn try_into_balance(self) -> RpcResult<Balance>;
+}
+
+impl<T: TryFrom<U256>> TryIntoBalance<T> for NumberOrHex {
+	fn try_into_balance(self) -> RpcResult<T> {
+		self.into_u256().try_into().or(Err(JsonRpseeError::Call(CallError::Custom(
+			ErrorObject::owned(
+				1,
+				"Unable to serve the request",
+				Some(String::from("input parameter doesnt fit into u128")),
+			),
+		))))
+	}
+}
+
 #[async_trait]
 impl<C, Block, Balance, TokenId, AccountId, BlockNumber>
 	VestingMangataApiServer<
@@ -64,17 +80,16 @@ impl<C, Block, Balance, TokenId, AccountId, BlockNumber>
 		AccountId,
 		TokenId,
 		Balance,
-		BlockNumber,
-		VestingInfosWithLockedAt<Balance, BlockNumber>>
+		BlockNumber>
 	for VestingMangata<C, Block>
 where
 	Block: BlockT,
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: VestingMangataRuntimeApi<Block, AccountId, TokenId, Balance, BlockNumber>,
-	Balance: Codec + MaybeDisplay + MaybeFromStr + sp_std::fmt::Debug,
-	TokenId: Codec + MaybeDisplay + MaybeFromStr + sp_std::fmt::Debug,
-	BlockNumber: Codec + MaybeDisplay + MaybeFromStr + sp_std::fmt::Debug,
-	AccountId: Codec + MaybeDisplay + MaybeFromStr + sp_std::fmt::Debug,
+	Balance: Codec + MaybeDisplay + MaybeFromStr + TryFrom<U256> + Into<NumberOrHex>,
+	TokenId: Codec + MaybeDisplay + MaybeFromStr,
+	BlockNumber: Codec + MaybeDisplay + MaybeFromStr,
+	AccountId: Codec + MaybeDisplay + MaybeFromStr,
 {
 	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<<Block as BlockT>::Hash>)
 	 -> RpcResult<VestingInfosWithLockedAt<Balance, BlockNumber>> {
