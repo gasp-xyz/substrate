@@ -26,7 +26,6 @@ sp-std = { version = "5.0.0", default-features = false, path = "../../../primiti
 [features]
 default = ["std"]
 std = [
-    "serde",
     "sp-api/std",
     "sp-core/std",
     "sp-std/std",

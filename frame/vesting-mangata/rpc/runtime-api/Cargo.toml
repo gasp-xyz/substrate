@@ -22,7 +22,6 @@ sp-std = { version = "5.0.0", default-features = false, path = "../../../../prim
 [features]
 default = ["std"]
 std = [
-	"serde",
 	"codec/std",
 	"pallet-vesting-mangata/std",
 	"sp-api/std",
