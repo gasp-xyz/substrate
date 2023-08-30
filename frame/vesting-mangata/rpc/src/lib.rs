@@ -93,7 +93,7 @@ where
 	AccountId: Codec + MaybeDisplay + MaybeFromStr,
 {
 	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<<Block as BlockT>::Hash>)
-	 -> RpcResult<VestingInfosWithLockedAt<Balance, BlockNumber>> {
+	 -> RpcResult<Vec<(VestingInfo<Balance, BlockNumber>, Balance)>> {
 		let api = self.client.runtime_api();
 		let at = self.client.info().best_hash;
 
