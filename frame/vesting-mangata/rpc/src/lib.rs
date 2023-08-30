@@ -25,7 +25,8 @@ use jsonrpsee::{
 	proc_macros::rpc,
 	types::error::{CallError, ErrorCode, ErrorObject},
 };
-use pallet_vesting_mangata_rpc_runtime_api::{VestingLockedInfo};
+use sp_core::U256;
+pub use pallet_vesting_mangata::{VestingInfo};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
@@ -40,7 +41,7 @@ pub use pallet_vesting_mangata_rpc_runtime_api::VestingMangataApi as VestingMang
 #[rpc(client, server)]
 pub trait VestingMangataApi<BlockHash, AccountId, TokenId, Balance, BlockNumber> {
 	#[method(name = "vesting_getVestingLockedAt")]
-	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<BlockHash>) -> RpcResult<Vec<(VestingLockedInfo<Balance, BlockNumber>, Balance)>>;
+	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<BlockHash>) -> RpcResult<Vec<(VestingInfo<Balance, BlockNumber>, Balance)>>;
 }
 
 /// Provides RPC methods to query a dispatchable's class, weight and fee.
