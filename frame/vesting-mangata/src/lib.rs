@@ -439,19 +439,16 @@ impl<T: Config> Pallet<T> {
 		who: &T::AccountId,
 		token_id: TokenIdOf<T>,
 		at_block_number: Option<T::BlockNumber>,
-	) -> Result<Vec<(VestingInfo<BalanceOf<T>, T::BlockNumber>, BalanceOf<T>)>, DispatchError> {
+	) -> Result<Vec<BalanceOf<T>>, DispatchError> {
 		let at_block_number = at_block_number.unwrap_or(<frame_system::Pallet<T>>::block_number());
 		Ok(Self::vesting(&who, token_id)
 			.ok_or(Error::<T>::NotVesting)?
 			.to_vec()
 			.into_iter()
 			.map(|x| {
-				(
-					x.into(),
-					BalanceOf::<T>::from(x.locked_at::<T::BlockNumberToBalance>(at_block_number)),
-				)
+				BalanceOf::<T>::from(x.locked_at::<T::BlockNumberToBalance>(at_block_number))
 			})
-			.collect::<Vec<(VestingInfo<BalanceOf<T>, T::BlockNumber>, BalanceOf<T>)>>())
+			.collect::<Vec<BalanceOf<T>>>())
 	}
 
 	// Create a new `VestingInfo`, based off of two other `VestingInfo`s.

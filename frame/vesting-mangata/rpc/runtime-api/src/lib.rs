@@ -26,8 +26,6 @@ use sp_std::{vec, vec::Vec};
 
 use sp_runtime::traits::{MaybeDisplay, MaybeFromStr};
 
-pub use pallet_vesting_mangata::{VestingInfo};
-
 sp_api::decl_runtime_apis! {
 	pub trait VestingMangataApi<AccountId, TokenId, Balance, BlockNumber> where
 		AccountId: Codec + MaybeDisplay + MaybeFromStr,
@@ -35,7 +33,7 @@ sp_api::decl_runtime_apis! {
 		TokenId: Codec + MaybeDisplay + MaybeFromStr,
 		BlockNumber: Codec + MaybeDisplay + MaybeFromStr,
 	{
-		fn get_vesting_locked_at(who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>) -> Vec<(VestingInfo<Balance, BlockNumber>, Balance)>;
+		fn get_vesting_locked_at(who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>) -> Vec<Balance>;
 	}
 }
 

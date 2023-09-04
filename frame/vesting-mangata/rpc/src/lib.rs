@@ -41,7 +41,7 @@ pub use pallet_vesting_mangata_rpc_runtime_api::VestingMangataApi as VestingMang
 #[rpc(client, server)]
 pub trait VestingMangataApi<BlockHash, AccountId, TokenId, Balance, BlockNumber> {
 	#[method(name = "vesting_getVestingLockedAt")]
-	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<BlockHash>) -> RpcResult<Vec<(VestingInfo<Balance, BlockNumber>, Balance)>>;
+	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<BlockHash>) -> RpcResult<Vec<Balance>>;
 }
 
 /// Provides RPC methods to query a dispatchable's class, weight and fee.
@@ -93,7 +93,7 @@ where
 	AccountId: Codec + MaybeDisplay + MaybeFromStr,
 {
 	fn get_vesting_locked_at(&self, who: AccountId, token_id: TokenId, at_block_number: Option<BlockNumber>, at: Option<<Block as BlockT>::Hash>)
-	 -> RpcResult<Vec<(VestingInfo<Balance, BlockNumber>, Balance)>> {
+	 -> RpcResult<Vec<Balance>> {
 		let api = self.client.runtime_api();
 		let at = self.client.info().best_hash;
 
