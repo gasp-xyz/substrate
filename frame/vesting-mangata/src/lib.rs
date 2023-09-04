@@ -435,22 +435,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn get_vesting_locked_at(
-		who: &T::AccountId,
-		token_id: TokenIdOf<T>,
-		at_block_number: Option<T::BlockNumber>,
-	) -> Result<Vec<BalanceOf<T>>, DispatchError> {
-		let at_block_number = at_block_number.unwrap_or(<frame_system::Pallet<T>>::block_number());
-		Ok(Self::vesting(&who, token_id)
-			.ok_or(Error::<T>::NotVesting)?
-			.to_vec()
-			.into_iter()
-			.map(|x| {
-				BalanceOf::<T>::from(x.locked_at::<T::BlockNumberToBalance>(at_block_number))
-			})
-			.collect::<Vec<BalanceOf<T>>>())
-	}
-
 	// Create a new `VestingInfo`, based off of two other `VestingInfo`s.
 	// NOTE: We assume both schedules have had funds unlocked up through the current block.
 	fn merge_vesting_info(
