@@ -329,6 +329,7 @@ pub trait PreValidateSwaps {
 		),
 		DispatchError,
 	>;
+
 }
 
 pub trait FeeLockTriggerTrait<AccountId> {
@@ -424,6 +425,11 @@ pub trait PoolCreateApi {
 		second: TokenId,
 		second_amount: Balance,
 	) -> Option<(TokenId, Balance)>;
+
+	fn is_pool_empty(
+		first_asset_id: TokenId,
+		second_asset_id: TokenId
+	) -> Result<bool, DispatchError>;
 }
 
 pub trait LiquidityMiningApi {
