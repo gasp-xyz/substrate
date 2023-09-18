@@ -5,17 +5,17 @@ use codec::{Decode, Encode};
 #[cfg(feature = "helpers")]
 use sp_core::crypto::key_types::AURA;
 #[cfg(feature = "helpers")]
-use sp_core::sr25519;
-use sp_core::{ShufflingSeed};
-#[cfg(feature = "helpers")]
 use sp_core::hash::{H256, H512};
 #[cfg(feature = "helpers")]
 use sp_core::hexdisplay::AsBytesRef;
+#[cfg(feature = "helpers")]
+use sp_core::sr25519;
+#[cfg(feature = "helpers")]
+pub use sp_core::sr25519::vrf::{VrfOutput, VrfProof, VrfSignData, VrfSignature, VrfTranscript};
+use sp_core::ShufflingSeed;
 use sp_inherents::{InherentData, InherentIdentifier};
 #[cfg(feature = "helpers")]
-pub use sp_core::sr25519::vrf::{VrfOutput, VrfProof, VrfSignature, VrfTranscript};
-#[cfg(feature = "helpers")]
-use sp_keystore::{Keystore};
+use sp_keystore::Keystore;
 use sp_runtime::{traits::Block as BlockT, ConsensusEngineId, RuntimeString};
 use sp_std::vec::Vec;
 
@@ -54,15 +54,13 @@ pub fn calculate_next_seed_from_bytes<T: Keystore + ?Sized>(
 	public_key: &sr25519::Public,
 	prev_seed: Vec<u8>,
 ) -> Option<ShufflingSeed> {
-	let transcript = VrfTranscript::new(b"shuffling_seed", &[(b"prev_seed",&prev_seed)]);
+	let transcript: VrfSignData = VrfTranscript::new(b"shuffling_seed", &[(b"prev_seed", &prev_seed)]).into();
 	Keystore::sr25519_vrf_sign(keystore, AURA, public_key, &transcript)
 		.ok()
 		.flatten()
-		.map(|sig| {
-			ShufflingSeed {
-				seed: H256::from_slice(sig.output.encode().as_bytes_ref()),
-				proof: H512::from_slice(sig.proof.encode().as_bytes_ref()),
-			}
+		.map(|sig| ShufflingSeed {
+			seed: H256::from_slice(sig.output.encode().as_bytes_ref()),
+			proof: H512::from_slice(sig.proof.encode().as_bytes_ref()),
 		})
 }
 

@@ -97,6 +97,8 @@ pub struct CreatedBlock<Hash> {
 	pub hash: Hash,
 	/// some extra details about the import operation
 	pub aux: ImportedAux,
+	/// uncompacted storage proof size (zero mean that there is no proof)
+	pub proof_size: usize,
 }
 
 impl<Hash> ManualSeal<Hash> {
@@ -160,10 +162,11 @@ pub fn send_result<T: std::fmt::Debug>(
 			}
 		}
 	} else {
-		// instant seal doesn't report errors over rpc, simply log them.
+		// Sealing/Finalization with no RPC sender such as instant seal or delayed finalize doesn't
+		// report errors over rpc, simply log them.
 		match result {
-			Ok(r) => log::info!("Instant Seal success: {:?}", r),
-			Err(e) => log::error!("Instant Seal encountered an error: {}", e),
+			Ok(r) => log::info!("Consensus with no RPC sender success: {:?}", r),
+			Err(e) => log::error!("Consensus with no RPC sender encountered an error: {}", e),
 		}
 	}
 }

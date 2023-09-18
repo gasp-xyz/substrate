@@ -12,24 +12,23 @@ readme = "README.md"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
-
 [dependencies]
 aquamarine = "0.1.12"
 log = "0.4.8"
-sp-state-machine = { version = "0.13.0", path = "../../primitives/state-machine" }
-sp-runtime = { version = "7.0.0", path = "../../primitives/runtime" }
-sp-api = { version = "4.0.0-dev", path = "../../primitives/api" }
-sp-blockchain = { version = "4.0.0-dev", path = "../../primitives/blockchain" }
-sp-core = { version = "7.0.0", path = "../../primitives/core" }
-sp-block-builder = { version = "4.0.0-dev", path = "../../primitives/block-builder" }
-sp-inherents = { version = "4.0.0-dev", path = "../../primitives/inherents" }
-sp-ver = { version = "4.0.0-dev", path = "../../primitives/ver" }
-sc-client-api = { version = "4.0.0-dev", path = "../api" }
-codec = { package = "parity-scale-codec", version = "3.0.0", features = [
-    "derive",
+codec = { package = "parity-scale-codec", version = "3.6.1", features = [
+	"derive",
 ] }
+sc-client-api = { version = "4.0.0-dev", path = "../api" }
+sp-api = { version = "4.0.0-dev", path = "../../primitives/api" }
+sp-block-builder = { version = "4.0.0-dev", path = "../../primitives/block-builder" }
+sp-blockchain = { version = "4.0.0-dev", path = "../../primitives/blockchain" }
+sp-core = { version = "21.0.0", path = "../../primitives/core" }
+sp-inherents = { version = "4.0.0-dev", path = "../../primitives/inherents" }
+sp-runtime = { version = "24.0.0", path = "../../primitives/runtime" }
+sp-ver = { version = "4.0.0-dev", path = "../../primitives/ver" }
 ver-api = { path='../../primitives/ver-api', version='4.0.0-dev' }
 extrinsic-shuffler = { path='../../primitives/shuffler', version='4.0.0-dev' }
 
 [dev-dependencies]
+sp-state-machine = { version = "0.28.0", path = "../../primitives/state-machine" }
 substrate-test-runtime-client = { path = "../../test-utils/runtime/client" }

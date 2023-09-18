@@ -16,11 +16,8 @@
 
 //! Helper for handling (i.e. answering) BEEFY justifications requests from a remote peer.
 
-use codec::Decode;
-use futures::{
-	channel::{mpsc, oneshot},
-	StreamExt,
-};
+use codec::DecodeAll;
+use futures::{channel::oneshot, StreamExt};
 use log::{debug, trace};
 use sc_client_api::BlockBackend;
 use sc_network::{
@@ -80,7 +77,7 @@ impl<B: Block> IncomingRequest<B> {
 		F: FnOnce(usize) -> Vec<ReputationChange>,
 	{
 		let netconfig::IncomingRequest { payload, peer, pending_response } = raw;
-		let payload = match JustificationRequest::decode(&mut payload.as_ref()) {
+		let payload = match JustificationRequest::decode_all(&mut payload.as_ref()) {
 			Ok(payload) => payload,
 			Err(err) => {
 				let response = netconfig::OutgoingResponse {
@@ -102,11 +99,11 @@ impl<B: Block> IncomingRequest<B> {
 ///
 /// Takes care of decoding and handling of invalid encoded requests.
 pub(crate) struct IncomingRequestReceiver {
-	raw: mpsc::Receiver<netconfig::IncomingRequest>,
+	raw: async_channel::Receiver<netconfig::IncomingRequest>,
 }
 
 impl IncomingRequestReceiver {
-	pub fn new(inner: mpsc::Receiver<netconfig::IncomingRequest>) -> Self {
+	pub fn new(inner: async_channel::Receiver<netconfig::IncomingRequest>) -> Self {
 		Self { raw: inner }
 	}
 
@@ -185,7 +182,9 @@ where
 	}
 
 	/// Run [`BeefyJustifsRequestHandler`].
-	pub async fn run(mut self) {
+	///
+	/// Should never end, returns `Error` otherwise.
+	pub async fn run(&mut self) -> Error {
 		trace!(target: BEEFY_SYNC_LOG_TARGET, "🥩 Running BeefyJustifsRequestHandler");
 
 		while let Ok(request) = self
@@ -218,5 +217,6 @@ where
 				},
 			}
 		}
+		Error::RequestsReceiverStreamClosed
 	}
 }

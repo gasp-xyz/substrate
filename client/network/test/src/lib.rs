@@ -20,13 +20,14 @@
 #[cfg(test)]
 mod block_import;
 #[cfg(test)]
+mod fuzz;
+#[cfg(test)]
 mod service;
 #[cfg(test)]
 mod sync;
 
 use std::{
 	collections::HashMap,
-	marker::PhantomData,
 	pin::Pin,
 	sync::Arc,
 	task::{Context as FutureContext, Poll},
@@ -39,7 +40,7 @@ use log::trace;
 use parking_lot::Mutex;
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};
 use sc_client_api::{
-	backend::{AuxStore, Backend, Finalizer, TransactionFor},
+	backend::{AuxStore, Backend, Finalizer},
 	BlockBackend, BlockImportNotification, BlockchainEvents, FinalityNotification,
 	FinalityNotifications, ImportNotifications,
 };
@@ -50,9 +51,10 @@ use sc_consensus::{
 };
 use sc_network::{
 	config::{
-		MultiaddrWithPeerId, NetworkConfiguration, NonDefaultSetConfig, NonReservedPeerMode,
-		ProtocolId, Role, SyncMode, TransportConfig,
+		FullNetworkConfiguration, MultiaddrWithPeerId, NetworkConfiguration, NonDefaultSetConfig,
+		NonReservedPeerMode, ProtocolId, Role, SyncMode, TransportConfig,
 	},
+	peer_store::PeerStore,
 	request_responses::ProtocolConfig as RequestResponseConfig,
 	types::ProtocolName,
 	Multiaddr, NetworkBlock, NetworkService, NetworkStateInfo, NetworkSyncForkRequest,
@@ -88,12 +90,10 @@ use sp_runtime::{
 };
 use substrate_test_runtime_client::AccountKeyring;
 pub use substrate_test_runtime_client::{
-	runtime::{Block, Extrinsic, Hash, Header, Transfer},
+	runtime::{Block, ExtrinsicBuilder, Hash, Header, Transfer},
 	TestClient, TestClientBuilder, TestClientBuilderExt,
 };
 use tokio::time::timeout;
-
-type AuthorityId = sp_consensus_babe::AuthorityId;
 
 /// A Verifier that accepts all blocks and passes them on with the configured
 /// finality to be imported.
@@ -116,8 +116,8 @@ impl PassThroughVerifier {
 impl<B: BlockT> Verifier<B> for PassThroughVerifier {
 	async fn verify(
 		&mut self,
-		mut block: BlockImportParams<B, ()>,
-	) -> Result<BlockImportParams<B, ()>, String> {
+		mut block: BlockImportParams<B>,
+	) -> Result<BlockImportParams<B>, String> {
 		if block.fork_choice.is_none() {
 			block.fork_choice = Some(ForkChoiceStrategy::LongestChain);
 		};
@@ -209,7 +209,6 @@ impl PeersClient {
 #[async_trait::async_trait]
 impl BlockImport<Block> for PeersClient {
 	type Error = ConsensusError;
-	type Transaction = ();
 
 	async fn check_block(
 		&mut self,
@@ -220,9 +219,9 @@ impl BlockImport<Block> for PeersClient {
 
 	async fn import_block(
 		&mut self,
-		block: BlockImportParams<Block, ()>,
+		block: BlockImportParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
-		self.client.import_block(block.clear_storage_changes_and_mutate()).await
+		self.client.import_block(block).await
 	}
 }
 
@@ -247,7 +246,6 @@ pub struct Peer<D, BlockImport> {
 impl<D, B> Peer<D, B>
 where
 	B: BlockImport<Block, Error = ConsensusError> + Send + Sync,
-	B::Transaction: Send,
 {
 	/// Get this peer ID.
 	pub fn id(&self) -> PeerId {
@@ -474,7 +472,7 @@ where
 						amount: 1,
 						nonce,
 					};
-					builder.push(transfer.into_signed_tx()).unwrap();
+					builder.push(transfer.into_unchecked_extrinsic()).unwrap();
 					nonce += 1;
 					builder.build().unwrap().block
 				},
@@ -495,16 +493,6 @@ where
 				ForkChoiceStrategy::LongestChain,
 			)
 		}
-	}
-
-	pub fn push_authorities_change_block(
-		&mut self,
-		new_authorities: Vec<AuthorityId>,
-	) -> Vec<H256> {
-		self.generate_blocks(1, BlockOrigin::File, |mut builder| {
-			builder.push(Extrinsic::AuthoritiesChange(new_authorities.clone())).unwrap();
-			builder.build().unwrap().block
-		})
 	}
 
 	/// Get a reference to the client.
@@ -565,24 +553,12 @@ where
 }
 
 pub trait BlockImportAdapterFull:
-	BlockImport<
-		Block,
-		Transaction = TransactionFor<substrate_test_runtime_client::Backend, Block>,
-		Error = ConsensusError,
-	> + Send
-	+ Sync
-	+ Clone
+	BlockImport<Block, Error = ConsensusError> + Send + Sync + Clone
 {
 }
 
 impl<T> BlockImportAdapterFull for T where
-	T: BlockImport<
-			Block,
-			Transaction = TransactionFor<substrate_test_runtime_client::Backend, Block>,
-			Error = ConsensusError,
-		> + Send
-		+ Sync
-		+ Clone
+	T: BlockImport<Block, Error = ConsensusError> + Send + Sync + Clone
 {
 }
 
@@ -592,27 +568,23 @@ impl<T> BlockImportAdapterFull for T where
 /// This is required as the `TestNetFactory` trait does not distinguish between
 /// full and light nodes.
 #[derive(Clone)]
-pub struct BlockImportAdapter<I, Transaction = ()> {
+pub struct BlockImportAdapter<I> {
 	inner: I,
-	_phantom: PhantomData<Transaction>,
 }
 
-impl<I, Transaction> BlockImportAdapter<I, Transaction> {
+impl<I> BlockImportAdapter<I> {
 	/// Create a new instance of `Self::Full`.
 	pub fn new(inner: I) -> Self {
-		Self { inner, _phantom: PhantomData }
+		Self { inner }
 	}
 }
 
 #[async_trait::async_trait]
-impl<I, Transaction> BlockImport<Block> for BlockImportAdapter<I, Transaction>
+impl<I> BlockImport<Block> for BlockImportAdapter<I>
 where
 	I: BlockImport<Block, Error = ConsensusError> + Send + Sync,
-	I::Transaction: Send,
-	Transaction: Send + 'static,
 {
 	type Error = ConsensusError;
-	type Transaction = Transaction;
 
 	async fn check_block(
 		&mut self,
@@ -623,9 +595,9 @@ where
 
 	async fn import_block(
 		&mut self,
-		block: BlockImportParams<Block, Self::Transaction>,
+		block: BlockImportParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
-		self.inner.import_block(block.clear_storage_changes_and_mutate()).await
+		self.inner.import_block(block).await
 	}
 }
 
@@ -639,8 +611,8 @@ struct VerifierAdapter<B: BlockT> {
 impl<B: BlockT> Verifier<B> for VerifierAdapter<B> {
 	async fn verify(
 		&mut self,
-		block: BlockImportParams<B, ()>,
-	) -> Result<BlockImportParams<B, ()>, String> {
+		block: BlockImportParams<B>,
+	) -> Result<BlockImportParams<B>, String> {
 		let hash = block.header.hash();
 		self.verifier.lock().await.verify(block).await.map_err(|e| {
 			self.failed_verifications.lock().insert(hash, e.clone());
@@ -723,10 +695,7 @@ pub struct FullPeerConfig {
 }
 
 #[async_trait::async_trait]
-pub trait TestNetFactory: Default + Sized + Send
-where
-	<Self::BlockImport as BlockImport<Block>>::Transaction: Send,
-{
+pub trait TestNetFactory: Default + Sized + Send {
 	type Verifier: 'static + Verifier<Block>;
 	type BlockImport: BlockImport<Block, Error = ConsensusError> + Clone + Send + Sync + 'static;
 	type PeerData: Default + Send;
@@ -782,7 +751,7 @@ where
 			*genesis_extra_storage = storage;
 		}
 
-		if matches!(config.sync_mode, SyncMode::Fast { .. } | SyncMode::Warp) {
+		if matches!(config.sync_mode, SyncMode::LightState { .. } | SyncMode::Warp) {
 			test_client_builder = test_client_builder.set_no_genesis();
 		}
 		let backend = test_client_builder.backend();
@@ -812,20 +781,6 @@ where
 		network_config.transport = TransportConfig::MemoryOnly;
 		network_config.listen_addresses = vec![listen_addr.clone()];
 		network_config.allow_non_globals_in_dht = true;
-		network_config
-			.request_response_protocols
-			.extend(config.request_response_protocols);
-		network_config.extra_sets = config
-			.notifications_protocols
-			.into_iter()
-			.map(|p| NonDefaultSetConfig {
-				notifications_protocol: p,
-				fallback_names: Vec::new(),
-				max_notification_size: 1024 * 1024,
-				handshake: None,
-				set_config: Default::default(),
-			})
-			.collect();
 		if let Some(connect_to) = config.connect_to_peers {
 			let addrs = connect_to
 				.iter()
@@ -838,6 +793,7 @@ where
 			network_config.default_peers_set.reserved_nodes = addrs;
 			network_config.default_peers_set.non_reserved_mode = NonReservedPeerMode::Deny;
 		}
+		let mut full_net_config = FullNetworkConfiguration::new(&network_config);
 
 		let protocol_id = ProtocolId::from("test-protocol-name");
 
@@ -902,7 +858,7 @@ where
 				Roles::from(if config.is_authority { &Role::Authority } else { &Role::Full }),
 				client.clone(),
 				None,
-				&network_config,
+				&full_net_config,
 				protocol_id.clone(),
 				&fork_id,
 				block_announce_validator,
@@ -918,6 +874,34 @@ where
 		let sync_service_import_queue = Box::new(sync_service.clone());
 		let sync_service = Arc::new(sync_service.clone());
 
+		for config in config.request_response_protocols {
+			full_net_config.add_request_response_protocol(config);
+		}
+		for config in [
+			block_request_protocol_config,
+			state_request_protocol_config,
+			light_client_request_protocol_config,
+			warp_protocol_config,
+		] {
+			full_net_config.add_request_response_protocol(config);
+		}
+
+		for protocol in config.notifications_protocols {
+			full_net_config.add_notification_protocol(NonDefaultSetConfig {
+				notifications_protocol: protocol,
+				fallback_names: Vec::new(),
+				max_notification_size: 1024 * 1024,
+				handshake: None,
+				set_config: Default::default(),
+			});
+		}
+
+		let peer_store = PeerStore::new(
+			network_config.boot_nodes.iter().map(|bootnode| bootnode.peer_id).collect(),
+		);
+		let peer_store_handle = peer_store.handle();
+		self.spawn_task(peer_store.run().boxed());
+
 		let genesis_hash =
 			client.hash(Zero::zero()).ok().flatten().expect("Genesis block exists; qed");
 		let network = NetworkWorker::new(sc_network::config::Params {
@@ -925,20 +909,14 @@ where
 			executor: Box::new(|f| {
 				tokio::spawn(f);
 			}),
-			network_config,
+			network_config: full_net_config,
+			peer_store: peer_store_handle,
 			genesis_hash,
 			protocol_id,
 			fork_id,
 			metrics_registry: None,
 			block_announce_config,
 			tx,
-			request_response_protocol_configs: [
-				block_request_protocol_config,
-				state_request_protocol_config,
-				light_client_request_protocol_config,
-				warp_protocol_config,
-			]
-			.to_vec(),
 		})
 		.unwrap();
 

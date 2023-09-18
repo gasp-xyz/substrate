@@ -79,7 +79,7 @@ pub fn expand_genesis_config(def: &mut Def) -> proc_macro2::TokenStream {
 	let genesis_config_item =
 		&mut def.item.content.as_mut().expect("Checked by def parser").1[genesis_config.index];
 
-	let serde_crate = format!("{}::serde", frame_support);
+	let serde_crate = format!("{}::__private::serde", frame_support);
 
 	match genesis_config_item {
 		syn::Item::Enum(syn::ItemEnum { attrs, .. }) |
@@ -89,12 +89,11 @@ pub fn expand_genesis_config(def: &mut Def) -> proc_macro2::TokenStream {
 				attrs.push(syn::parse_quote!(
 					#[doc = r"
 					Can be used to configure the
-					[genesis state](https://docs.substrate.io/v3/runtime/chain-specs#the-genesis-state)
+					[genesis state](https://docs.substrate.io/build/genesis-configuration/)
 					of this pallet.
 					"]
 				));
 			}
-			attrs.push(syn::parse_quote!( #[cfg(feature = "std")] ));
 			attrs.push(syn::parse_quote!(
 				#[derive(#frame_support::Serialize, #frame_support::Deserialize)]
 			));
@@ -126,7 +125,7 @@ pub fn expand_genesis_config(def: &mut Def) -> proc_macro2::TokenStream {
 						stringify!($pallet_name),
 						"` does not have the std feature enabled, this will cause the `",
 						$pallet_path,
-						"::GenesisConfig` type to be undefined."
+						"::GenesisConfig` type to not implement serde traits."
 					));
 				};
 			}

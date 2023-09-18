@@ -22,9 +22,9 @@ use crate::{
 	generic,
 	scale_info::TypeInfo,
 	traits::{
-		self, Applyable, BlakeTwo256, Checkable, DispatchInfoOf, Dispatchable,
-		IdentifyAccountWithLookup, OpaqueKeys, PostDispatchInfoOf, SignedExtension,
-		ValidateUnsigned,
+		self, Applyable, BlakeTwo256, Checkable, DispatchInfoOf, Dispatchable, HeaderProvider,
+		IdentifyAccountWithLookup, OpaqueKeys, PostDispatchInfoOf, SignaturePayload,
+		SignedExtension, ValidateUnsigned,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
 	ApplyExtrinsicResultWithInfo, KeyTypeId,
@@ -254,7 +254,7 @@ impl<Xt> Deref for ExtrinsicWrapper<Xt> {
 }
 
 /// Testing block
-#[derive(PartialEq, Eq, Clone, Serialize, Debug, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Serialize, Debug, Encode, Decode, TypeInfo)]
 pub struct BlockGeneric<HeaderType, Xt> {
 	/// Block header
 	pub header: HeaderType,
@@ -262,8 +262,26 @@ pub struct BlockGeneric<HeaderType, Xt> {
 	pub extrinsics: Vec<Xt>,
 }
 
+pub type Block<Xt> = BlockGeneric<Header, Xt>;
+
+pub type BlockVer<Xt> = BlockGeneric<HeaderVer, Xt>;
+
+impl<HeaderType: traits::Header, Xt> HeaderProvider for BlockGeneric<HeaderType, Xt> {
+	type HeaderT = HeaderType;
+}
+
 impl<
-		HeaderType: 'static + Codec + Sized + Send + Sync + Serialize + Clone + Eq + Debug + traits::Header,
+		HeaderType: 'static
+			+ Codec
+			+ Sized
+			+ Send
+			+ Sync
+			+ Serialize
+			+ for <'a> Deserialize<'a>
+			+ Clone
+			+ Eq
+			+ Debug
+			+ traits::Header,
 		Xt: 'static + Codec + Sized + Send + Sync + Serialize + Clone + Eq + Debug + traits::Extrinsic,
 	> traits::Block for BlockGeneric<HeaderType, Xt>
 {
@@ -299,11 +317,14 @@ where
 	}
 }
 
-/// Block
-pub type Block<Xt> = BlockGeneric<Header, Xt>;
+/// The signature payload of a `TestXt`.
+type TxSingaturePayload<Extra> = (u64, Extra);
 
-/// Block
-pub type BlockVer<Xt> = BlockGeneric<HeaderVer, Xt>;
+impl<Extra: TypeInfo> SignaturePayload for TxSingaturePayload<Extra> {
+	type SignatureAddress = u64;
+	type Signature = ();
+	type SignatureExtra = Extra;
+}
 
 /// Test transaction, tuple of (sender, call, signed_extra)
 /// with index only used if sender is some.
@@ -312,7 +333,7 @@ pub type BlockVer<Xt> = BlockGeneric<HeaderVer, Xt>;
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 pub struct TestXt<Call, Extra> {
 	/// Signature of the extrinsic.
-	pub signature: Option<(u64, Extra)>,
+	pub signature: Option<TxSingaturePayload<Extra>>,
 	/// Call of the extrinsic.
 	pub call: Call,
 }
@@ -366,9 +387,11 @@ impl<Call: Codec + Sync + Send, Context, Extra> Checkable<Context> for TestXt<Ca
 	}
 }
 
-impl<Call: Codec + Sync + Send, Extra> traits::Extrinsic for TestXt<Call, Extra> {
+impl<Call: Codec + Sync + Send + TypeInfo, Extra: TypeInfo> traits::Extrinsic
+	for TestXt<Call, Extra>
+{
 	type Call = Call;
-	type SignaturePayload = (u64, Extra);
+	type SignaturePayload = TxSingaturePayload<Extra>;
 
 	fn is_signed(&self) -> Option<bool> {
 		Some(self.signature.is_some())

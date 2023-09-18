@@ -16,20 +16,23 @@
 // limitations under the License.
 
 use crate::{self as fast_unstake};
-use frame_benchmarking::frame_support::assert_ok;
 use frame_support::{
+	assert_ok,
 	pallet_prelude::*,
 	parameter_types,
 	traits::{ConstU64, Currency},
 	weights::constants::WEIGHT_REF_TIME_PER_SECOND,
 };
-use sp_runtime::traits::{Convert, IdentityLookup};
+use sp_runtime::{
+	traits::{Convert, IdentityLookup},
+	BuildStorage,
+};
 
 use pallet_staking::{Exposure, IndividualExposure, StakerStatus};
 use sp_std::prelude::*;
 
 pub type AccountId = u128;
-pub type AccountIndex = u32;
+pub type Nonce = u32;
 pub type BlockNumber = u64;
 pub type Balance = u128;
 pub type T = Runtime;
@@ -47,14 +50,13 @@ impl frame_system::Config for Runtime {
 	type BlockLength = ();
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
-	type Index = AccountIndex;
-	type BlockNumber = BlockNumber;
+	type Nonce = Nonce;
 	type RuntimeCall = RuntimeCall;
 	type Hash = sp_core::H256;
 	type Hashing = sp_runtime::traits::BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = sp_runtime::testing::Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = ();
 	type Version = ();
@@ -91,7 +93,7 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = ();
 	type FreezeIdentifier = ();
 	type MaxFreezes = ();
-	type HoldIdentifier = ();
+	type RuntimeHoldReason = ();
 	type MaxHolds = ();
 }
 
@@ -133,11 +135,10 @@ impl frame_election_provider_support::ElectionProvider for MockElection {
 }
 
 impl pallet_staking::Config for Runtime {
-	type MaxNominations = ConstU32<16>;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
 	type UnixTime = pallet_timestamp::Pallet<Self>;
-	type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
+	type CurrencyToVote = ();
 	type RewardRemainder = ();
 	type RuntimeEvent = RuntimeEvent;
 	type Slash = ();
@@ -156,8 +157,9 @@ impl pallet_staking::Config for Runtime {
 	type GenesisElectionProvider = Self::ElectionProvider;
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Self>;
 	type TargetList = pallet_staking::UseValidatorsMap<Self>;
+	type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
 	type MaxUnlockingChunks = ConstU32<32>;
-	type OnStakerSlash = ();
+	type EventListeners = ();
 	type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
 	type WeightInfo = ();
 }
@@ -195,14 +197,9 @@ impl fast_unstake::Config for Runtime {
 }
 
 type Block = frame_system::mocking::MockBlock<Runtime>;
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
+
 frame_support::construct_runtime!(
-	pub struct Runtime
-	where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
+	pub struct Runtime {
 		System: frame_system,
 		Timestamp: pallet_timestamp,
 		Balances: pallet_balances,
@@ -234,11 +231,11 @@ impl Default for ExtBuilder {
 	fn default() -> Self {
 		Self {
 			unexposed: vec![
-				(1, 2, 7 + 100),
-				(3, 4, 7 + 100),
-				(5, 6, 7 + 100),
-				(7, 8, 7 + 100),
-				(9, 10, 7 + 100),
+				(1, 1, 7 + 100),
+				(3, 3, 7 + 100),
+				(5, 5, 7 + 100),
+				(7, 7, 7 + 100),
+				(9, 9, 7 + 100),
 			],
 		}
 	}
@@ -278,7 +275,7 @@ impl ExtBuilder {
 	pub(crate) fn build(self) -> sp_io::TestExternalities {
 		sp_tracing::try_init_simple();
 		let mut storage =
-			frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+			frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
 
 		let validators_range = VALIDATOR_PREFIX..VALIDATOR_PREFIX + VALIDATORS_PER_ERA;
 		let nominators_range =
@@ -290,12 +287,6 @@ impl ExtBuilder {
 				.clone()
 				.into_iter()
 				.map(|(stash, _, balance)| (stash, balance * 2))
-				.chain(
-					self.unexposed
-						.clone()
-						.into_iter()
-						.map(|(_, ctrl, balance)| (ctrl, balance * 2)),
-				)
 				.chain(validators_range.clone().map(|x| (x, 7 + 100)))
 				.chain(nominators_range.clone().map(|x| (x, 7 + 100)))
 				.collect::<Vec<_>>(),
@@ -377,7 +368,6 @@ pub fn create_exposed_nominator(exposed: AccountId, era: u32) {
 	Balances::make_free_balance_be(&exposed, 100);
 	assert_ok!(Staking::bond(
 		RuntimeOrigin::signed(exposed),
-		exposed,
 		10,
 		pallet_staking::RewardDestination::Staked
 	));

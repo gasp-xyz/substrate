@@ -32,10 +32,10 @@ use sp_api::{
 	ApiExt, ApiRef, Core, ProvideRuntimeApi, StorageChanges, StorageProof, TransactionOutcome,
 };
 use sp_blockchain::{ApplyExtrinsicFailed, Error};
-use sp_core::{ExecutionContext, ShufflingSeed};
+use sp_core::{traits::CallContext, ShufflingSeed};
 use sp_runtime::{
 	legacy,
-	traits::{BlakeTwo256, Block as BlockT, Hash, HashFor, Header as HeaderT, NumberFor, One},
+	traits::{BlakeTwo256, Block as BlockT, Hash, HashingFor, Header as HeaderT, NumberFor, One},
 	Digest,
 };
 
@@ -86,7 +86,6 @@ pub fn apply_transaction_wrapper<'a, Block, Api>(
 	api: &<Api as ProvideRuntimeApi<Block>>::Api,
 	parent_hash: Block::Hash,
 	xt: Block::Extrinsic,
-	context: ExecutionContext,
 ) -> Result<sp_runtime::ApplyExtrinsicResult, sp_api::ApiError>
 where
 	Block: BlockT,
@@ -99,10 +98,10 @@ where
 
 	if version < 6 {
 		#[allow(deprecated)]
-		api.apply_extrinsic_before_version_6_with_context(parent_hash, context, xt)
+		api.apply_extrinsic_before_version_6(parent_hash, xt)
 			.map(legacy::byte_sized_error::convert_to_latest)
 	} else {
-		api.apply_extrinsic_with_context(parent_hash, context, xt)
+		api.apply_extrinsic(parent_hash, xt)
 	}
 }
 
@@ -112,20 +111,18 @@ where
 /// backend to get the state of the block. Furthermore an optional `proof` is included which
 /// can be used to proof that the build block contains the expected data. The `proof` will
 /// only be set when proof recording was activated.
-pub struct BuiltBlock<Block: BlockT, StateBackend: backend::StateBackend<HashFor<Block>>> {
+pub struct BuiltBlock<Block: BlockT> {
 	/// The actual block that was build.
 	pub block: Block,
 	/// The changes that need to be applied to the backend to get the state of the build block.
-	pub storage_changes: StorageChanges<StateBackend, Block>,
+	pub storage_changes: StorageChanges<Block>,
 	/// An optional proof that was recorded while building the block.
 	pub proof: Option<StorageProof>,
 }
 
-impl<Block: BlockT, StateBackend: backend::StateBackend<HashFor<Block>>>
-	BuiltBlock<Block, StateBackend>
-{
+impl<Block: BlockT> BuiltBlock<Block> {
 	/// Convert into the inner values.
-	pub fn into_inner(self) -> (Block, StorageChanges<StateBackend, Block>, Option<StorageProof>) {
+	pub fn into_inner(self) -> (Block, StorageChanges<Block>, Option<StorageProof>) {
 		(self.block, self.storage_changes, self.proof)
 	}
 }
@@ -172,9 +169,7 @@ impl<'a, Block, A, B> BlockBuilder<'a, Block, A, B>
 where
 	Block: BlockT,
 	A: ProvideRuntimeApi<Block> + 'a,
-	A::Api: BlockBuilderApi<Block>
-		+ ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-		+ VerApi<Block>,
+	A::Api: BlockBuilderApi<Block> + ApiExt<Block> + VerApi<Block>,
 	B: backend::Backend<Block>,
 {
 	/// Create a new instance of builder based on the given `parent_hash` and `parent_number`.
@@ -206,11 +201,9 @@ where
 			api.record_proof();
 		}
 
-		api.initialize_block_with_context(
-			parent_hash,
-			ExecutionContext::BlockConstruction,
-			&header,
-		)?;
+		api.set_call_context(CallContext::Onchain);
+
+		api.initialize_block(parent_hash, &header)?;
 
 		Ok(Self {
 			parent_hash,
@@ -232,7 +225,7 @@ where
 		mut self,
 		seed: ShufflingSeed,
 		call: F,
-	) -> Result<BuiltBlock<Block, backend::StateBackendFor<B, Block>>, Error> {
+	) -> Result<BuiltBlock<Block>, Error> {
 		let parent_hash = self.parent_hash;
 
 		let previous_block_txs = self.api.get_previous_block_txs(parent_hash).unwrap();
@@ -243,7 +236,7 @@ where
 		} else if self.api.can_enqueue_txs(parent_hash).unwrap() {
 			self.api.execute_in_transaction(|api| {
 				let next_header = api
-					.finalize_block_with_context(parent_hash, ExecutionContext::BlockConstruction)
+					.finalize_block(parent_hash)
 					.unwrap();
 
 				api.start_prevalidation(parent_hash).unwrap();
@@ -261,9 +254,8 @@ where
 					log::debug!(target:"block_builder", "storage migration scheduled - ignoring any txs");
 					TransactionOutcome::Rollback(vec![])
 				} else {
-					api.initialize_block_with_context(
+					api.initialize_block(
 						parent_hash,
-						ExecutionContext::BlockConstruction,
 						&header,
 					)
 					.unwrap();
@@ -294,7 +286,6 @@ where
 			&self.api,
 			parent_hash,
 			store_txs_inherent.clone(),
-			ExecutionContext::BlockConstruction,
 		)
 		.unwrap()
 		.unwrap()
@@ -303,7 +294,7 @@ where
 		// TODO get rid of collect
 		let mut next_header = self
 			.api
-			.finalize_block_with_context(parent_hash, ExecutionContext::BlockConstruction)?;
+			.finalize_block(parent_hash)?;
 
 		let proof = self.api.extract_proof();
 
@@ -325,7 +316,7 @@ where
 			.cloned()
 			.collect();
 
-		let extrinsics_root = HashFor::<Block>::ordered_trie_root(
+		let extrinsics_root = HashingFor::<Block>::ordered_trie_root(
 			all_extrinsics.iter().map(Encode::encode).collect(),
 			sp_runtime::StateVersion::V0,
 		);
@@ -352,7 +343,6 @@ where
 				api,
 				parent_hash,
 				xt.clone(),
-				ExecutionContext::BlockConstruction,
 			) {
 				Ok(Ok(_)) => {
 					inherents.push(xt);
@@ -397,7 +387,6 @@ where
 						api,
 						parent_hash,
 						xt.clone(),
-						ExecutionContext::BlockConstruction,
 					) {
 
 						_ if is_timer_expired() => {
@@ -440,6 +429,7 @@ where
 		&mut self,
 		inherent_data: sp_inherents::InherentData,
 	) -> Result<(ShufflingSeed, Vec<Block::Extrinsic>), Error> {
+		let parent_hash = self.parent_hash;
 		let seed = extract_inherent_data(&inherent_data).map_err(|_| {
 			sp_blockchain::Error::Backend(String::from(
 				"cannot read random seed from inherents data",
@@ -447,14 +437,10 @@ where
 		})?;
 
 		self.api
-			.execute_in_transaction(|api| {
+			.execute_in_transaction(move |api| {
 				// `create_inherents` should not change any state, to ensure this we always rollback
 				// the transaction.
-				TransactionOutcome::Rollback(api.inherent_extrinsics_with_context(
-					self.parent_hash,
-					ExecutionContext::BlockConstruction,
-					inherent_data,
-				))
+				TransactionOutcome::Rollback(api.inherent_extrinsics(parent_hash, inherent_data))
 			})
 			.map(|inherents| {
 				(ShufflingSeed { seed: seed.seed.into(), proof: seed.proof.into() }, inherents)
@@ -499,7 +485,6 @@ where
 			api,
 			at,
 			xt.clone(),
-			ExecutionContext::BlockConstruction,
 		) {
 			Ok(Ok(_)) => TransactionOutcome::Commit(Ok(())),
 			Ok(Err(tx_validity)) => TransactionOutcome::Rollback(Err(
@@ -516,7 +501,9 @@ mod tests {
 	use sp_blockchain::HeaderBackend;
 	use sp_core::Blake2Hasher;
 	use sp_state_machine::Backend;
-	use substrate_test_runtime_client::{DefaultTestClientBuilderExt, TestClientBuilderExt};
+	use substrate_test_runtime_client::{
+		runtime::ExtrinsicBuilder, DefaultTestClientBuilderExt, TestClientBuilderExt,
+	};
 
 	#[test]
 	fn block_building_storage_proof_does_not_include_runtime_by_default() {
@@ -524,9 +511,11 @@ mod tests {
 		let backend = builder.backend();
 		let client = builder.build();
 
+		let genesis_hash = client.info().best_hash;
+
 		let block = BlockBuilder::new(
 			&client,
-			client.info().best_hash,
+			genesis_hash,
 			client.info().best_number,
 			RecordProof::Yes,
 			Default::default(),
@@ -537,12 +526,11 @@ mod tests {
 		.unwrap();
 
 		let proof = block.proof.expect("Proof is build on request");
+		let genesis_state_root = client.header(genesis_hash).unwrap().unwrap().state_root;
 
-		let backend = sp_state_machine::create_proof_check_backend::<Blake2Hasher>(
-			block.storage_changes.transaction_storage_root,
-			proof,
-		)
-		.unwrap();
+		let backend =
+			sp_state_machine::create_proof_check_backend::<Blake2Hasher>(genesis_state_root, proof)
+				.unwrap();
 
 		assert!(backend
 			.storage(&sp_core::storage::well_known_keys::CODE)

@@ -20,24 +20,24 @@ use crate::{
 	discovery::{DiscoveryBehaviour, DiscoveryConfig, DiscoveryOut},
 	event::DhtEvent,
 	peer_info,
+	peer_store::PeerStoreHandle,
 	protocol::{CustomMessageOutcome, NotificationsSink, Protocol},
 	request_responses::{self, IfDisconnected, ProtocolConfig, RequestFailure},
 	types::ProtocolName,
+	ReputationChange,
 };
 
 use bytes::Bytes;
 use futures::channel::oneshot;
 use libp2p::{
-	core::{Multiaddr, PeerId, PublicKey},
-	identify::Info as IdentifyInfo,
-	kad::record,
-	swarm::NetworkBehaviour,
+	core::Multiaddr, identify::Info as IdentifyInfo, identity::PublicKey, kad::RecordKey,
+	swarm::NetworkBehaviour, PeerId,
 };
 
+use parking_lot::Mutex;
 use sc_network_common::role::{ObservedRole, Roles};
-use sc_peerset::{PeersetHandle, ReputationChange};
 use sp_runtime::traits::Block as BlockT;
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 pub use crate::request_responses::{InboundFailure, OutboundFailure, RequestId, ResponseFailure};
 
@@ -171,15 +171,20 @@ impl<B: BlockT> Behaviour<B> {
 		local_public_key: PublicKey,
 		disco_config: DiscoveryConfig,
 		request_response_protocols: Vec<ProtocolConfig>,
-		peerset: PeersetHandle,
+		peer_store_handle: PeerStoreHandle,
+		external_addresses: Arc<Mutex<HashSet<Multiaddr>>>,
 	) -> Result<Self, request_responses::RegisterError> {
 		Ok(Self {
 			substrate,
-			peer_info: peer_info::PeerInfoBehaviour::new(user_agent, local_public_key),
+			peer_info: peer_info::PeerInfoBehaviour::new(
+				user_agent,
+				local_public_key,
+				external_addresses,
+			),
 			discovery: disco_config.finish(),
 			request_responses: request_responses::RequestResponsesBehaviour::new(
 				request_response_protocols.into_iter(),
-				peerset,
+				Box::new(peer_store_handle),
 			)?,
 		})
 	}
@@ -256,13 +261,13 @@ impl<B: BlockT> Behaviour<B> {
 
 	/// Start querying a record from the DHT. Will later produce either a `ValueFound` or a
 	/// `ValueNotFound` event.
-	pub fn get_value(&mut self, key: record::Key) {
+	pub fn get_value(&mut self, key: RecordKey) {
 		self.discovery.get_value(key);
 	}
 
 	/// Starts putting a record into DHT. Will later produce either a `ValuePut` or a
 	/// `ValuePutFailed` event.
-	pub fn put_value(&mut self, key: record::Key, value: Vec<u8>) {
+	pub fn put_value(&mut self, key: RecordKey, value: Vec<u8>) {
 		self.discovery.put_value(key, value);
 	}
 }

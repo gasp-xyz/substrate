@@ -24,15 +24,11 @@ use sc_block_builder_ver::{
 	BlockBuilderApi as BlockBuilderApiVer, BlockBuilderProvider as BlockBuilderProviderVer,
 };
 use sc_cli::{CliConfiguration, ImportParams, Result, SharedParams};
-use sc_client_api::{Backend as ClientBackend, StateBackend};
+use sc_client_api::Backend as ClientBackend;
 use sc_consensus::BlockImport;
 use sc_service::Configuration;
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use sp_blockchain::HeaderBackend;
-use sp_runtime::{
-	traits::{Block as BlockT, Header as HeaderT},
-	DigestItem, OpaqueExtrinsic,
-};
+use sp_runtime::{traits::Block as BlockT, DigestItem, OpaqueExtrinsic};
 use std::{cell::RefCell, rc::Rc};
 use ver_api::VerApi;
 
@@ -122,7 +118,7 @@ impl OverheadCmd {
 		C: BlockBuilderProvider<BA, Block, C>
 			+ ProvideRuntimeApi<Block>
 			+ sp_blockchain::HeaderBackend<Block>,
-		C::Api: ApiExt<Block, StateBackend = BA::State> + BlockBuilderApi<Block>,
+		C::Api: ApiExt<Block> + BlockBuilderApi<Block>,
 	{
 		if ext_builder.pallet() != "system" || ext_builder.extrinsic() != "remark" {
 			return Err(format!("The extrinsic builder is required to build `System::Remark` extrinsics but builds `{}` extrinsics instead", ext_builder.name()).into());
@@ -156,18 +152,11 @@ impl OverheadCmd {
 	where
 		Block: BlockT<Extrinsic = OpaqueExtrinsic>,
 		BA: ClientBackend<Block>,
-		C: BlockBuilderProviderVer<BA, Block, C>,
-		C: ProvideRuntimeApi<Block>,
-		C: BlockImport<
-			Block,
-			Transaction = <BA::State as StateBackend<
-				<<Block as BlockT>::Header as HeaderT>::Hashing,
-			>>::Transaction,
-		>,
-		C: HeaderBackend<Block>,
-		C::Api: ApiExt<Block, StateBackend = BA::State>,
-		C::Api: BlockBuilderApiVer<Block>,
-		C::Api: VerApi<Block>,
+		C: BlockBuilderProviderVer<BA, Block, C>
+			+ ProvideRuntimeApi<Block>
+			+ sp_blockchain::HeaderBackend<Block>
+			+ BlockImport<Block>,
+		C::Api: ApiExt<Block> + BlockBuilderApiVer<Block> + VerApi<Block>,
 	{
 		let mut bench = BenchmarkVer::new(client, self.params.bench.clone(), inherent_data);
 

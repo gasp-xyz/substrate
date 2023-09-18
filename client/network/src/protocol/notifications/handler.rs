@@ -72,11 +72,12 @@ use futures::{
 	prelude::*,
 };
 use libp2p::{
-	core::{ConnectedPoint, PeerId},
+	core::ConnectedPoint,
 	swarm::{
-		handler::ConnectionEvent, ConnectionHandler, ConnectionHandlerEvent, IntoConnectionHandler,
-		KeepAlive, NegotiatedSubstream, SubstreamProtocol,
+		handler::ConnectionEvent, ConnectionHandler, ConnectionHandlerEvent, KeepAlive,
+		NegotiatedSubstream, SubstreamProtocol,
 	},
+	PeerId,
 };
 use log::error;
 use parking_lot::{Mutex, RwLock};
@@ -105,19 +106,6 @@ const OPEN_TIMEOUT: Duration = Duration::from_secs(10);
 /// open substreams.
 const INITIAL_KEEPALIVE_TIME: Duration = Duration::from_secs(5);
 
-/// Implements the `IntoConnectionHandler` trait of libp2p.
-///
-/// Every time a connection with a remote starts, an instance of this struct is created and
-/// sent to a background task dedicated to this connection. Once the connection is established,
-/// it is turned into a [`NotifsHandler`].
-///
-/// See the documentation at the module level for more information.
-pub struct NotifsHandlerProto {
-	/// Name of protocols, prototypes for upgrades for inbound substreams, and the message we
-	/// send or respond with in the handshake.
-	protocols: Vec<ProtocolConfig>,
-}
-
 /// The actual handler once the connection has been established.
 ///
 /// See the documentation at the module level for more information.
@@ -138,6 +126,30 @@ pub struct NotifsHandler {
 	events_queue: VecDeque<
 		ConnectionHandlerEvent<NotificationsOut, usize, NotifsHandlerOut, NotifsHandlerError>,
 	>,
+}
+
+impl NotifsHandler {
+	/// Creates new [`NotifsHandler`].
+	pub fn new(peer_id: PeerId, endpoint: ConnectedPoint, protocols: Vec<ProtocolConfig>) -> Self {
+		Self {
+			protocols: protocols
+				.into_iter()
+				.map(|config| {
+					let in_upgrade = NotificationsIn::new(
+						config.name.clone(),
+						config.fallback_names.clone(),
+						config.max_notification_size,
+					);
+
+					Protocol { config, in_upgrade, state: State::Closed { pending_opening: false } }
+				})
+				.collect(),
+			peer_id,
+			endpoint,
+			when_connection_open: Instant::now(),
+			events_queue: VecDeque::with_capacity(16),
+		}
+	}
 }
 
 /// Configuration for a notifications protocol.
@@ -191,6 +203,8 @@ enum State {
 	Opening {
 		/// Substream opened by the remote. If `Some`, has been accepted.
 		in_substream: Option<NotificationsInSubstream<NegotiatedSubstream>>,
+		/// Is the connection inbound.
+		inbound: bool,
 	},
 
 	/// Protocol is in the "Open" state.
@@ -221,45 +235,6 @@ enum State {
 		/// was an idle substream.
 		in_substream: Option<NotificationsInSubstream<NegotiatedSubstream>>,
 	},
-}
-
-impl IntoConnectionHandler for NotifsHandlerProto {
-	type Handler = NotifsHandler;
-
-	fn inbound_protocol(&self) -> UpgradeCollec<NotificationsIn> {
-		self.protocols
-			.iter()
-			.map(|cfg| {
-				NotificationsIn::new(
-					cfg.name.clone(),
-					cfg.fallback_names.clone(),
-					cfg.max_notification_size,
-				)
-			})
-			.collect::<UpgradeCollec<_>>()
-	}
-
-	fn into_handler(self, peer_id: &PeerId, connected_point: &ConnectedPoint) -> Self::Handler {
-		NotifsHandler {
-			protocols: self
-				.protocols
-				.into_iter()
-				.map(|config| {
-					let in_upgrade = NotificationsIn::new(
-						config.name.clone(),
-						config.fallback_names.clone(),
-						config.max_notification_size,
-					);
-
-					Protocol { config, in_upgrade, state: State::Closed { pending_opening: false } }
-				})
-				.collect(),
-			peer_id: *peer_id,
-			endpoint: connected_point.clone(),
-			when_connection_open: Instant::now(),
-			events_queue: VecDeque::with_capacity(16),
-		}
-	}
 }
 
 /// Event that can be received by a `NotifsHandler`.
@@ -303,6 +278,8 @@ pub enum NotifsHandlerOut {
 		received_handshake: Vec<u8>,
 		/// How notifications can be sent to this node.
 		notifications_sink: NotificationsSink,
+		/// Is the connection inbound.
+		inbound: bool,
 	},
 
 	/// Acknowledges a [`NotifsHandlerIn::Open`]. The remote has refused the attempt to open
@@ -461,18 +438,6 @@ pub enum NotifsHandlerError {
 	SyncNotificationsClogged,
 }
 
-impl NotifsHandlerProto {
-	/// Builds a new handler.
-	///
-	/// `list` is a list of notification protocols names, the message to send as part of the
-	/// handshake, and the maximum allowed size of a notification. At the moment, the message
-	/// is always the same whether we open a substream ourselves or respond to handshake from
-	/// the remote.
-	pub fn new(list: impl Into<Vec<ProtocolConfig>>) -> Self {
-		Self { protocols: list.into() }
-	}
-}
-
 impl ConnectionHandler for NotifsHandler {
 	type InEvent = NotifsHandlerIn;
 	type OutEvent = NotifsHandlerOut;
@@ -506,7 +471,7 @@ impl ConnectionHandler for NotifsHandler {
 		match event {
 			ConnectionEvent::FullyNegotiatedInbound(inbound) => {
 				let (mut in_substream_open, protocol_index) = inbound.protocol;
-				let mut protocol_info = &mut self.protocols[protocol_index];
+				let protocol_info = &mut self.protocols[protocol_index];
 
 				match protocol_info.state {
 					State::Closed { pending_opening } => {
@@ -557,7 +522,7 @@ impl ConnectionHandler for NotifsHandler {
 						error!(target: "sub-libp2p", "☎️ State mismatch in notifications handler");
 						debug_assert!(false);
 					},
-					State::Opening { ref mut in_substream } => {
+					State::Opening { ref mut in_substream, inbound } => {
 						let (async_tx, async_rx) = mpsc::channel(ASYNC_NOTIFICATIONS_BUFFER_SIZE);
 						let (sync_tx, sync_rx) = mpsc::channel(SYNC_NOTIFICATIONS_BUFFER_SIZE);
 						let notifications_sink = NotificationsSink {
@@ -582,6 +547,7 @@ impl ConnectionHandler for NotifsHandler {
 								endpoint: self.endpoint.clone(),
 								received_handshake: new_open.handshake,
 								notifications_sink,
+								inbound,
 							},
 						));
 					},
@@ -636,7 +602,7 @@ impl ConnectionHandler for NotifsHandler {
 							);
 						}
 
-						protocol_info.state = State::Opening { in_substream: None };
+						protocol_info.state = State::Opening { in_substream: None, inbound: false };
 					},
 					State::OpenDesiredByRemote { pending_opening, in_substream } => {
 						let handshake_message = protocol_info.config.handshake.read().clone();
@@ -662,12 +628,13 @@ impl ConnectionHandler for NotifsHandler {
 						// The state change is done in two steps because of borrowing issues.
 						let in_substream = match mem::replace(
 							&mut protocol_info.state,
-							State::Opening { in_substream: None },
+							State::Opening { in_substream: None, inbound: false },
 						) {
 							State::OpenDesiredByRemote { in_substream, .. } => in_substream,
 							_ => unreachable!(),
 						};
-						protocol_info.state = State::Opening { in_substream: Some(in_substream) };
+						protocol_info.state =
+							State::Opening { in_substream: Some(in_substream), inbound: true };
 					},
 					State::Opening { .. } | State::Open { .. } => {
 						// As documented, it is forbidden to send an `Open` while there is already
@@ -811,7 +778,7 @@ impl ConnectionHandler for NotifsHandler {
 			match &mut self.protocols[protocol_index].state {
 				State::Closed { .. } |
 				State::Open { in_substream: None, .. } |
-				State::Opening { in_substream: None } => {},
+				State::Opening { in_substream: None, .. } => {},
 
 				State::Open { in_substream: in_substream @ Some(_), .. } =>
 					match Stream::poll_next(Pin::new(in_substream.as_mut().unwrap()), cx) {
@@ -932,6 +899,7 @@ pub mod tests {
 				endpoint,
 				received_handshake,
 				notifications_sink,
+				inbound: false,
 			}
 		}
 
@@ -954,7 +922,6 @@ pub mod tests {
 			.await
 		}
 	}
-
 	struct MockSubstream {
 		pub rx: mpsc::Receiver<Vec<u8>>,
 		pub tx: mpsc::Sender<Vec<u8>>,
@@ -1171,7 +1138,7 @@ pub mod tests {
 		handler.on_behaviour_event(NotifsHandlerIn::Open { protocol_index: 0 });
 		assert!(std::matches!(
 			handler.protocols[0].state,
-			State::Opening { in_substream: Some(_) }
+			State::Opening { in_substream: Some(_), .. }
 		));
 
 		// remote now tries to open another substream, verify that it is rejected and closed
@@ -1208,7 +1175,7 @@ pub mod tests {
 		.await;
 		assert!(std::matches!(
 			handler.protocols[0].state,
-			State::Opening { in_substream: Some(_) }
+			State::Opening { in_substream: Some(_), .. }
 		));
 	}
 
@@ -1244,7 +1211,7 @@ pub mod tests {
 		handler.on_behaviour_event(NotifsHandlerIn::Open { protocol_index: 0 });
 		assert!(std::matches!(
 			handler.protocols[0].state,
-			State::Opening { in_substream: Some(_) }
+			State::Opening { in_substream: Some(_), .. }
 		));
 
 		// accept the substream and move its state to `Open`
@@ -1335,7 +1302,7 @@ pub mod tests {
 		handler.on_behaviour_event(NotifsHandlerIn::Open { protocol_index: 0 });
 		assert!(std::matches!(
 			handler.protocols[0].state,
-			State::Opening { in_substream: Some(_) }
+			State::Opening { in_substream: Some(_), .. }
 		));
 
 		handler.on_behaviour_event(NotifsHandlerIn::Close { protocol_index: 0 });
@@ -1395,7 +1362,7 @@ pub mod tests {
 		handler.on_behaviour_event(NotifsHandlerIn::Open { protocol_index: 0 });
 		assert!(std::matches!(
 			handler.protocols[0].state,
-			State::Opening { in_substream: Some(_) }
+			State::Opening { in_substream: Some(_), .. }
 		));
 
 		handler.on_behaviour_event(NotifsHandlerIn::Close { protocol_index: 0 });
@@ -1478,7 +1445,7 @@ pub mod tests {
 		handler.on_behaviour_event(NotifsHandlerIn::Open { protocol_index: 0 });
 		assert!(std::matches!(
 			handler.protocols[0].state,
-			State::Opening { in_substream: Some(_) }
+			State::Opening { in_substream: Some(_), .. }
 		));
 
 		handler.on_behaviour_event(NotifsHandlerIn::Close { protocol_index: 0 });
@@ -1527,7 +1494,7 @@ pub mod tests {
 		handler.on_behaviour_event(NotifsHandlerIn::Open { protocol_index: 0 });
 		assert!(std::matches!(
 			handler.protocols[0].state,
-			State::Opening { in_substream: Some(_) }
+			State::Opening { in_substream: Some(_), .. }
 		));
 
 		handler.on_behaviour_event(NotifsHandlerIn::Close { protocol_index: 0 });

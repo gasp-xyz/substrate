@@ -24,16 +24,15 @@ use sc_block_builder_ver::{
 	BlockBuilderProvider as BlockBuilderProviderVer,
 };
 use sc_cli::{Error, Result};
-use sc_client_api::{Backend as ClientBackend, StateBackend};
+use sc_client_api::Backend as ClientBackend;
 use sc_consensus::{
 	block_import::{BlockImportParams, ForkChoiceStrategy},
-	BlockImport, StateAction,
+	StateAction, BlockImport,
 };
 use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_blockchain::{
 	ApplyExtrinsicFailed::Validity,
 	Error::{ApplyExtrinsicFailed, RuntimeApiError},
-	HeaderBackend,
 };
 use sp_consensus_aura::{digests::CompatibleDigestItem, sr25519::AuthoritySignature};
 use sp_runtime::{
@@ -96,7 +95,7 @@ where
 	C: BlockBuilderProvider<BA, Block, C>
 		+ ProvideRuntimeApi<Block>
 		+ sp_blockchain::HeaderBackend<Block>,
-	C::Api: ApiExt<Block, StateBackend = BA::State> + BlockBuilderApi<Block>,
+	C::Api: ApiExt<Block> + BlockBuilderApi<Block>,
 {
 	/// Create a new [`Self`] from the arguments.
 	pub fn new(
@@ -227,18 +226,11 @@ impl<Block, BA, C> BenchmarkVer<Block, BA, C>
 where
 	Block: BlockT<Extrinsic = OpaqueExtrinsic>,
 	BA: ClientBackend<Block>,
-	C: BlockBuilderProviderVer<BA, Block, C>,
-	C: ProvideRuntimeApi<Block>,
-	C: BlockImport<
-		Block,
-		Transaction = <BA::State as StateBackend<
-			<<Block as BlockT>::Header as HeaderT>::Hashing,
-		>>::Transaction,
-	>,
-	C: HeaderBackend<Block>,
-	C::Api: ApiExt<Block, StateBackend = BA::State>,
-	C::Api: BlockBuilderApiVer<Block>,
-	C::Api: VerApi<Block>,
+	C: BlockBuilderProviderVer<BA, Block, C>
+		+ ProvideRuntimeApi<Block>
+		+ sp_blockchain::HeaderBackend<Block>
+		+ BlockImport<Block>,
+	C::Api: ApiExt<Block> + BlockBuilderApiVer<Block> + VerApi<Block>,
 {
 	/// Create a new [`Self`] from the arguments.
 	pub fn new(
@@ -295,17 +287,15 @@ where
 		digest
 	}
 
-	fn import_block(&mut self, block: sc_block_builder_ver::BuiltBlock<Block, BA::State>) {
+	fn import_block(&mut self, block: sc_block_builder_ver::BuiltBlock<Block>) {
 		info!("importing new block");
 		let mut params = BlockImportParams::new(BlockOrigin::File, block.block.header().clone());
 		params.state_action =
 			StateAction::ApplyChanges(sc_consensus::StorageChanges::Changes(block.storage_changes));
 		params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
 
-		futures::executor::block_on(
-			self.client.borrow_mut().import_block(params),
-		)
-		.expect("importing a block doesn't fail");
+		futures::executor::block_on(self.client.borrow_mut().import_block(params))
+			.expect("importing a block doesn't fail");
 		info!("best number: {} ", self.client.borrow().info().best_number);
 	}
 
@@ -313,7 +303,7 @@ where
 	fn build_first_block(
 		&mut self,
 		ext_builder: &dyn ExtrinsicBuilder,
-	) -> Result<sc_block_builder_ver::BuiltBlock<Block, BA::State>> {
+	) -> Result<sc_block_builder_ver::BuiltBlock<Block>> {
 		let digest = self.create_digest(1_u64);
 		info!("creating remarks");
 		let remarks = (0..self.max_ext_per_block())
@@ -373,7 +363,7 @@ where
 		ext_builder: &dyn ExtrinsicBuilder,
 		txs_count: usize,
 		apply_previous_block_extrinsics: bool,
-	) -> Result<sc_block_builder_ver::BuiltBlock<Block, BA::State>> {
+	) -> Result<sc_block_builder_ver::BuiltBlock<Block>> {
 		// Return early if we just want a block with inherents and no additional extrinsics.
 		let remarks = (txs_count..(txs_count * 2))
 			.map(|nonce| {

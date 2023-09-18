@@ -21,7 +21,7 @@
 
 use frame_benchmarking::v1::{account, benchmarks, whitelisted_caller};
 use frame_support::assert_ok;
-use frame_system::{Pallet as System, RawOrigin};
+use frame_system::{pallet_prelude::BlockNumberFor, Pallet as System, RawOrigin};
 use sp_runtime::traits::{Bounded, CheckedDiv, CheckedMul};
 
 use super::*;
@@ -57,7 +57,7 @@ fn add_vesting_schedules<T: Config>(
 		BalanceOf::<T>::max_value(),
 	);
 
-	System::<T>::set_block_number(T::BlockNumber::zero());
+	System::<T>::set_block_number(BlockNumberFor::<T>::zero());
 
 	let mut total_locked: BalanceOf<T> = Zero::zero();
 	for _ in 0..n {
@@ -95,7 +95,7 @@ benchmarks! {
 		let expected_balance = add_vesting_schedules::<T>(caller_lookup, s)?;
 
 		// At block zero, everything is vested.
-		assert_eq!(System::<T>::block_number(), T::BlockNumber::zero());
+		assert_eq!(System::<T>::block_number(), BlockNumberFor::<T>::zero());
 		assert_eq!(
 			Vesting::<T>::vesting_balance(&caller, NATIVE_CURRENCY_ID.into()),
 			Some(expected_balance),
@@ -151,7 +151,7 @@ benchmarks! {
 		let expected_balance = add_vesting_schedules::<T>(other_lookup.clone(), s)?;
 
 		// At block zero, everything is vested.
-		assert_eq!(System::<T>::block_number(), T::BlockNumber::zero());
+		assert_eq!(System::<T>::block_number(), BlockNumberFor::<T>::zero());
 		assert_eq!(
 			Vesting::<T>::vesting_balance(&other, NATIVE_CURRENCY_ID.into()),
 			Some(expected_balance),

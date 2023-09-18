@@ -67,6 +67,7 @@ use frame_support::{
 	},
 	weights::Weight,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{
@@ -131,8 +132,8 @@ impl VestingAction {
 	/// Pick the schedules that this action dictates should continue vesting undisturbed.
 	fn pick_schedules<T: Config>(
 		&self,
-		schedules: Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>>,
-	) -> impl Iterator<Item = VestingInfo<BalanceOf<T>, T::BlockNumber>> + '_ {
+		schedules: Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>>,
+	) -> impl Iterator<Item = VestingInfo<BalanceOf<T>, BlockNumberFor<T>>> + '_ {
 		schedules.into_iter().enumerate().filter_map(move |(index, schedule)| {
 			if self.should_remove(index) {
 				None
@@ -166,7 +167,7 @@ pub mod pallet {
 		type Tokens: MultiTokenLockableCurrency<Self::AccountId>;
 
 		/// Convert the block number into a balance.
-		type BlockNumberToBalance: Convert<Self::BlockNumber, BalanceOf<Self>>;
+		type BlockNumberToBalance: Convert<BlockNumberFor<Self>, BalanceOf<Self>>;
 
 		/// The minimum amount transferred to call `vested_transfer`.
 		#[pallet::constant]
@@ -207,7 +208,7 @@ pub mod pallet {
 		T::AccountId,
 		Blake2_128Concat,
 		TokenIdOf<T>,
-		BoundedVec<VestingInfo<BalanceOf<T>, T::BlockNumber>, MaxVestingSchedulesGet<T>>,
+		BoundedVec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>, MaxVestingSchedulesGet<T>>,
 	>;
 
 	/// Storage version of the pallet.
@@ -220,20 +221,14 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub vesting:
-			Vec<(T::AccountId, TokenIdOf<T>, T::BlockNumber, T::BlockNumber, BalanceOf<T>)>,
-	}
-
-	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> Self {
-			GenesisConfig { vesting: Default::default() }
-		}
+			Vec<(T::AccountId, TokenIdOf<T>, BlockNumberFor<T>, BlockNumberFor<T>, BalanceOf<T>)>,
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			// Genesis uses the latest storage version.
 			StorageVersion::<T>::put(Releases::V1);
@@ -365,7 +360,7 @@ pub mod pallet {
 			token_id: TokenIdOf<T>,
 			source: AccountIdLookupOf<T>,
 			target: AccountIdLookupOf<T>,
-			schedule: VestingInfo<BalanceOf<T>, T::BlockNumber>,
+			schedule: VestingInfo<BalanceOf<T>, BlockNumberFor<T>>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::do_vested_transfer(source, target, schedule, token_id)
@@ -446,8 +441,8 @@ impl<T: Config> Pallet<T> {
 	pub fn get_vesting_locked_at(
 		who: &T::AccountId,
 		token_id: TokenIdOf<T>,
-		at_block_number: Option<T::BlockNumber>,
-	) -> Result<Vec<(VestingInfo<BalanceOf<T>, T::BlockNumber>, BalanceOf<T>)>, DispatchError> {
+		at_block_number: Option<BlockNumberFor<T>>,
+	) -> Result<Vec<(VestingInfo<BalanceOf<T>, BlockNumberFor<T>>, BalanceOf<T>)>, DispatchError> {
 		let at_block_number = at_block_number.unwrap_or(<frame_system::Pallet<T>>::block_number());
 		Ok(Self::vesting(&who, token_id)
 			.ok_or(Error::<T>::NotVesting)?
@@ -459,16 +454,16 @@ impl<T: Config> Pallet<T> {
 					BalanceOf::<T>::from(x.locked_at::<T::BlockNumberToBalance>(at_block_number)),
 				)
 			})
-			.collect::<Vec<(VestingInfo<BalanceOf<T>, T::BlockNumber>, BalanceOf<T>)>>())
+			.collect::<Vec<(VestingInfo<BalanceOf<T>, BlockNumberFor<T>>, BalanceOf<T>)>>())
 	}
 
 	// Create a new `VestingInfo`, based off of two other `VestingInfo`s.
 	// NOTE: We assume both schedules have had funds unlocked up through the current block.
 	fn merge_vesting_info(
-		now: T::BlockNumber,
-		schedule1: VestingInfo<BalanceOf<T>, T::BlockNumber>,
-		schedule2: VestingInfo<BalanceOf<T>, T::BlockNumber>,
-	) -> Option<VestingInfo<BalanceOf<T>, T::BlockNumber>> {
+		now: BlockNumberFor<T>,
+		schedule1: VestingInfo<BalanceOf<T>, BlockNumberFor<T>>,
+		schedule2: VestingInfo<BalanceOf<T>, BlockNumberFor<T>>,
+	) -> Option<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>> {
 		let schedule1_ending_block = schedule1.ending_block_as_balance::<T::BlockNumberToBalance>();
 		let schedule2_ending_block = schedule2.ending_block_as_balance::<T::BlockNumberToBalance>();
 		let now_as_balance = T::BlockNumberToBalance::convert(now);
@@ -515,7 +510,7 @@ impl<T: Config> Pallet<T> {
 	fn do_vested_transfer(
 		source: AccountIdLookupOf<T>,
 		target: AccountIdLookupOf<T>,
-		schedule: VestingInfo<BalanceOf<T>, T::BlockNumber>,
+		schedule: VestingInfo<BalanceOf<T>, BlockNumberFor<T>>,
 		token_id: TokenIdOf<T>,
 	) -> DispatchResult {
 		// Validate user inputs.
@@ -575,9 +570,9 @@ impl<T: Config> Pallet<T> {
 	///
 	/// NOTE: the amount locked does not include any schedules that are filtered out via `action`.
 	fn report_schedule_updates(
-		schedules: Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>>,
+		schedules: Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>>,
 		action: VestingAction,
-	) -> (Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>>, BalanceOf<T>) {
+	) -> (Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>>, BalanceOf<T>) {
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		let mut total_locked_now: BalanceOf<T> = Zero::zero();
@@ -615,11 +610,11 @@ impl<T: Config> Pallet<T> {
 	/// Write an accounts updated vesting schedules to storage.
 	fn write_vesting(
 		who: &T::AccountId,
-		schedules: Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>>,
+		schedules: Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>>,
 		token_id: TokenIdOf<T>,
 	) -> Result<(), DispatchError> {
 		let schedules: BoundedVec<
-			VestingInfo<BalanceOf<T>, T::BlockNumber>,
+			VestingInfo<BalanceOf<T>, BlockNumberFor<T>>,
 			MaxVestingSchedulesGet<T>,
 		> = schedules.try_into().map_err(|_| Error::<T>::AtMaxVestingSchedules)?;
 
@@ -656,9 +651,9 @@ impl<T: Config> Pallet<T> {
 	/// Execute a `VestingAction` against the given `schedules`. Returns the updated schedules
 	/// and locked amount.
 	fn exec_action(
-		schedules: Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>>,
+		schedules: Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>>,
 		action: VestingAction,
-	) -> Result<(Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>>, BalanceOf<T>), DispatchError> {
+	) -> Result<(Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>>, BalanceOf<T>), DispatchError> {
 		let (schedules, locked_now) = match action {
 			VestingAction::Merge { index1: idx1, index2: idx2 } => {
 				// The schedule index is based off of the schedule ordering prior to filtering out
@@ -698,22 +693,22 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> MultiTokenVestingLocks<T::AccountId, T::BlockNumber> for Pallet<T>
+impl<T: Config> MultiTokenVestingLocks<T::AccountId, BlockNumberFor<T>> for Pallet<T>
 where
 	BalanceOf<T>: MaybeSerializeDeserialize + Debug,
 	TokenIdOf<T>: MaybeSerializeDeserialize + Debug,
 {
 	type Currency = T::Tokens;
-	type Moment = T::BlockNumber;
+	type Moment = BlockNumberFor<T>;
 
 	fn unlock_tokens(
 		who: &T::AccountId,
 		token_id: TokenIdOf<T>,
 		unlock_amount: BalanceOf<T>,
-	) -> Result<(T::BlockNumber, BalanceOf<T>), DispatchError> {
+	) -> Result<(BlockNumberFor<T>, BalanceOf<T>), DispatchError> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		// First we get the schedules of who
-		let schedules: Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>> =
+		let schedules: Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>> =
 			Self::vesting(who, token_id).ok_or(Error::<T>::NotVesting)?.into();
 		// Then we enumerate and iterate through them
 		// and select the one which has atleast the `unlock_amount` as `locked_at` in the schedule
@@ -722,7 +717,7 @@ where
 		// ending_block_as_balance of the schedule
 		let mut selected_schedule: Option<(
 			usize,
-			VestingInfo<BalanceOf<T>, T::BlockNumber>,
+			VestingInfo<BalanceOf<T>, BlockNumberFor<T>>,
 			BalanceOf<T>,
 			BalanceOf<T>,
 		)> = None;
@@ -815,11 +810,11 @@ where
 		token_id: TokenIdOf<T>,
 		vesting_index: u32,
 		unlock_some_amount_or_all: Option<BalanceOf<T>>,
-	) -> Result<(BalanceOf<T>, T::BlockNumber, BalanceOf<T>), DispatchError> {
+	) -> Result<(BalanceOf<T>, BlockNumberFor<T>, BalanceOf<T>), DispatchError> {
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		// First we get the schedules of who
-		let schedules: Vec<VestingInfo<BalanceOf<T>, T::BlockNumber>> =
+		let schedules: Vec<VestingInfo<BalanceOf<T>, BlockNumberFor<T>>> =
 			Self::vesting(who, token_id).ok_or(Error::<T>::NotVesting)?.into();
 
 		// Then we enumerate and iterate through them
@@ -829,7 +824,7 @@ where
 		// ending_block_as_balance of the schedule
 		let mut selected_schedule: Option<(
 			usize,
-			VestingInfo<BalanceOf<T>, T::BlockNumber>,
+			VestingInfo<BalanceOf<T>, BlockNumberFor<T>>,
 			BalanceOf<T>,
 			BalanceOf<T>,
 		)> = None;
@@ -917,10 +912,10 @@ where
 		who: &T::AccountId,
 		token_id: TokenIdOf<T>,
 		lock_amount: BalanceOf<T>,
-		starting_block: Option<T::BlockNumber>,
+		starting_block: Option<BlockNumberFor<T>>,
 		ending_block_as_balance: BalanceOf<T>,
 	) -> DispatchResult {
-		let starting_block: T::BlockNumber =
+		let starting_block: BlockNumberFor<T> =
 			starting_block.unwrap_or(<frame_system::Pallet<T>>::block_number());
 
 		T::Tokens::ensure_can_withdraw(
@@ -958,7 +953,7 @@ where
 	TokenIdOf<T>: MaybeSerializeDeserialize + Debug,
 {
 	type Currency = T::Tokens;
-	type Moment = T::BlockNumber;
+	type Moment = BlockNumberFor<T>;
 
 	/// Get the amount that is currently being vested and cannot be transferred out of this account.
 	fn vesting_balance(who: &T::AccountId, token_id: TokenIdOf<T>) -> Option<BalanceOf<T>> {
@@ -989,7 +984,7 @@ where
 		who: &T::AccountId,
 		locked: BalanceOf<T>,
 		per_block: BalanceOf<T>,
-		starting_block: T::BlockNumber,
+		starting_block: BlockNumberFor<T>,
 		token_id: TokenIdOf<T>,
 	) -> DispatchResult {
 		if locked.is_zero() {
@@ -1023,7 +1018,7 @@ where
 		who: &T::AccountId,
 		locked: BalanceOf<T>,
 		per_block: BalanceOf<T>,
-		starting_block: T::BlockNumber,
+		starting_block: BlockNumberFor<T>,
 		token_id: TokenIdOf<T>,
 	) -> DispatchResult {
 		// Check for `per_block` or `locked` of 0.

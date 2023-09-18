@@ -19,8 +19,12 @@
 
 use crate::{Error, Keystore, KeystorePtr};
 
+#[cfg(feature = "bandersnatch-experimental")]
+use sp_core::bandersnatch;
+#[cfg(feature = "bls-experimental")]
+use sp_core::{bls377, bls381};
 use sp_core::{
-	crypto::{ByteArray, KeyTypeId, Pair, VrfSigner},
+	crypto::{ByteArray, KeyTypeId, Pair, VrfSecret},
 	ecdsa, ed25519, sr25519,
 };
 
@@ -99,14 +103,24 @@ impl MemoryKeystore {
 		Ok(sig)
 	}
 
-	fn vrf_sign<T: Pair + VrfSigner>(
+	fn vrf_sign<T: Pair + VrfSecret>(
 		&self,
 		key_type: KeyTypeId,
 		public: &T::Public,
-		transcript: &T::VrfInput,
+		data: &T::VrfSignData,
 	) -> Result<Option<T::VrfSignature>, Error> {
-		let sig = self.pair::<T>(key_type, public).map(|pair| pair.vrf_sign(transcript));
+		let sig = self.pair::<T>(key_type, public).map(|pair| pair.vrf_sign(data));
 		Ok(sig)
+	}
+
+	fn vrf_output<T: Pair + VrfSecret>(
+		&self,
+		key_type: KeyTypeId,
+		public: &T::Public,
+		input: &T::VrfInput,
+	) -> Result<Option<T::VrfOutput>, Error> {
+		let preout = self.pair::<T>(key_type, public).map(|pair| pair.vrf_output(input));
+		Ok(preout)
 	}
 }
 
@@ -136,9 +150,18 @@ impl Keystore for MemoryKeystore {
 		&self,
 		key_type: KeyTypeId,
 		public: &sr25519::Public,
-		transcript: &sr25519::vrf::VrfTranscript,
+		data: &sr25519::vrf::VrfSignData,
 	) -> Result<Option<sr25519::vrf::VrfSignature>, Error> {
-		self.vrf_sign::<sr25519::Pair>(key_type, public, transcript)
+		self.vrf_sign::<sr25519::Pair>(key_type, public, data)
+	}
+
+	fn sr25519_vrf_output(
+		&self,
+		key_type: KeyTypeId,
+		public: &sr25519::Public,
+		input: &sr25519::vrf::VrfInput,
+	) -> Result<Option<sr25519::vrf::VrfOutput>, Error> {
+		self.vrf_output::<sr25519::Pair>(key_type, public, input)
 	}
 
 	fn ed25519_public_keys(&self, key_type: KeyTypeId) -> Vec<ed25519::Public> {
@@ -191,6 +214,112 @@ impl Keystore for MemoryKeystore {
 	) -> Result<Option<ecdsa::Signature>, Error> {
 		let sig = self.pair::<ecdsa::Pair>(key_type, public).map(|pair| pair.sign_prehashed(msg));
 		Ok(sig)
+	}
+
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_public_keys(&self, key_type: KeyTypeId) -> Vec<bandersnatch::Public> {
+		self.public_keys::<bandersnatch::Pair>(key_type)
+	}
+
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_generate_new(
+		&self,
+		key_type: KeyTypeId,
+		seed: Option<&str>,
+	) -> Result<bandersnatch::Public, Error> {
+		self.generate_new::<bandersnatch::Pair>(key_type, seed)
+	}
+
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &bandersnatch::Public,
+		msg: &[u8],
+	) -> Result<Option<bandersnatch::Signature>, Error> {
+		self.sign::<bandersnatch::Pair>(key_type, public, msg)
+	}
+
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_vrf_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &bandersnatch::Public,
+		data: &bandersnatch::vrf::VrfSignData,
+	) -> Result<Option<bandersnatch::vrf::VrfSignature>, Error> {
+		self.vrf_sign::<bandersnatch::Pair>(key_type, public, data)
+	}
+
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_ring_vrf_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &bandersnatch::Public,
+		data: &bandersnatch::vrf::VrfSignData,
+		prover: &bandersnatch::ring_vrf::RingProver,
+	) -> Result<Option<bandersnatch::ring_vrf::RingVrfSignature>, Error> {
+		let sig = self
+			.pair::<bandersnatch::Pair>(key_type, public)
+			.map(|pair| pair.ring_vrf_sign(data, prover));
+		Ok(sig)
+	}
+
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_vrf_output(
+		&self,
+		key_type: KeyTypeId,
+		public: &bandersnatch::Public,
+		input: &bandersnatch::vrf::VrfInput,
+	) -> Result<Option<bandersnatch::vrf::VrfOutput>, Error> {
+		self.vrf_output::<bandersnatch::Pair>(key_type, public, input)
+	}
+
+	#[cfg(feature = "bls-experimental")]
+	fn bls381_public_keys(&self, key_type: KeyTypeId) -> Vec<bls381::Public> {
+		self.public_keys::<bls381::Pair>(key_type)
+	}
+
+	#[cfg(feature = "bls-experimental")]
+	fn bls381_generate_new(
+		&self,
+		key_type: KeyTypeId,
+		seed: Option<&str>,
+	) -> Result<bls381::Public, Error> {
+		self.generate_new::<bls381::Pair>(key_type, seed)
+	}
+
+	#[cfg(feature = "bls-experimental")]
+	fn bls381_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &bls381::Public,
+		msg: &[u8],
+	) -> Result<Option<bls381::Signature>, Error> {
+		self.sign::<bls381::Pair>(key_type, public, msg)
+	}
+
+	#[cfg(feature = "bls-experimental")]
+	fn bls377_public_keys(&self, key_type: KeyTypeId) -> Vec<bls377::Public> {
+		self.public_keys::<bls377::Pair>(key_type)
+	}
+
+	#[cfg(feature = "bls-experimental")]
+	fn bls377_generate_new(
+		&self,
+		key_type: KeyTypeId,
+		seed: Option<&str>,
+	) -> Result<bls377::Public, Error> {
+		self.generate_new::<bls377::Pair>(key_type, seed)
+	}
+
+	#[cfg(feature = "bls-experimental")]
+	fn bls377_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &bls377::Public,
+		msg: &[u8],
+	) -> Result<Option<bls377::Signature>, Error> {
+		self.sign::<bls377::Pair>(key_type, public, msg)
 	}
 
 	fn insert(&self, key_type: KeyTypeId, suri: &str, public: &[u8]) -> Result<(), ()> {
@@ -261,13 +390,42 @@ mod tests {
 	}
 
 	#[test]
-	fn vrf_sign() {
+	fn sr25519_vrf_sign() {
 		let store = MemoryKeystore::new();
 
 		let secret_uri = "//Alice";
 		let key_pair = sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
 
-		let transcript = sr25519::vrf::VrfTranscript::new(
+		let data = sr25519::vrf::VrfInput::new(
+			b"Test",
+			&[
+				(b"one", &1_u64.to_le_bytes()),
+				(b"two", &2_u64.to_le_bytes()),
+				(b"three", "test".as_bytes()),
+			],
+		)
+		.into_sign_data();
+
+		let result = store.sr25519_vrf_sign(SR25519, &key_pair.public(), &data);
+		assert!(result.unwrap().is_none());
+
+		store
+			.insert(SR25519, secret_uri, key_pair.public().as_ref())
+			.expect("Inserts unknown key");
+
+		let result = store.sr25519_vrf_sign(SR25519, &key_pair.public(), &data);
+
+		assert!(result.unwrap().is_some());
+	}
+
+	#[test]
+	fn sr25519_vrf_output() {
+		let store = MemoryKeystore::new();
+
+		let secret_uri = "//Alice";
+		let pair = sr25519::Pair::from_string(secret_uri, None).expect("Generates key pair");
+
+		let input = sr25519::vrf::VrfInput::new(
 			b"Test",
 			&[
 				(b"one", &1_u64.to_le_bytes()),
@@ -276,16 +434,17 @@ mod tests {
 			],
 		);
 
-		let result = store.sr25519_vrf_sign(SR25519, &key_pair.public(), &transcript);
+		let result = store.sr25519_vrf_output(SR25519, &pair.public(), &input);
 		assert!(result.unwrap().is_none());
 
 		store
-			.insert(SR25519, secret_uri, key_pair.public().as_ref())
+			.insert(SR25519, secret_uri, pair.public().as_ref())
 			.expect("Inserts unknown key");
 
-		let result = store.sr25519_vrf_sign(SR25519, &key_pair.public(), &transcript);
+		let preout = store.sr25519_vrf_output(SR25519, &pair.public(), &input).unwrap().unwrap();
 
-		assert!(result.unwrap().is_some());
+		let result = preout.make_bytes::<32>(b"rand", &input, &pair.public());
+		assert!(result.is_ok());
 	}
 
 	#[test]
@@ -306,5 +465,70 @@ mod tests {
 
 		let res = store.ecdsa_sign_prehashed(ECDSA, &pair.public(), &msg).unwrap();
 		assert!(res.is_some());
+	}
+
+	#[test]
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_vrf_sign() {
+		use sp_core::testing::BANDERSNATCH;
+
+		let store = MemoryKeystore::new();
+
+		let secret_uri = "//Alice";
+		let key_pair =
+			bandersnatch::Pair::from_string(secret_uri, None).expect("Generates key pair");
+
+		let in1 = bandersnatch::vrf::VrfInput::new("in", "foo");
+		let sign_data =
+			bandersnatch::vrf::VrfSignData::new_unchecked(b"Test", Some("m1"), Some(in1));
+
+		let result = store.bandersnatch_vrf_sign(BANDERSNATCH, &key_pair.public(), &sign_data);
+		assert!(result.unwrap().is_none());
+
+		store
+			.insert(BANDERSNATCH, secret_uri, key_pair.public().as_ref())
+			.expect("Inserts unknown key");
+
+		let result = store.bandersnatch_vrf_sign(BANDERSNATCH, &key_pair.public(), &sign_data);
+
+		assert!(result.unwrap().is_some());
+	}
+
+	#[test]
+	#[cfg(feature = "bandersnatch-experimental")]
+	fn bandersnatch_ring_vrf_sign() {
+		use sp_core::testing::BANDERSNATCH;
+
+		let store = MemoryKeystore::new();
+
+		let ring_ctx = bandersnatch::ring_vrf::RingContext::new_testing();
+
+		let mut pks: Vec<_> = (0..16)
+			.map(|i| bandersnatch::Pair::from_seed(&[i as u8; 32]).public())
+			.collect();
+
+		let prover_idx = 3;
+		let prover = ring_ctx.prover(&pks, prover_idx).unwrap();
+
+		let secret_uri = "//Alice";
+		let pair = bandersnatch::Pair::from_string(secret_uri, None).expect("Generates key pair");
+		pks[prover_idx] = pair.public();
+
+		let in1 = bandersnatch::vrf::VrfInput::new("in1", "foo");
+		let sign_data =
+			bandersnatch::vrf::VrfSignData::new_unchecked(b"Test", &["m1", "m2"], [in1]);
+
+		let result =
+			store.bandersnatch_ring_vrf_sign(BANDERSNATCH, &pair.public(), &sign_data, &prover);
+		assert!(result.unwrap().is_none());
+
+		store
+			.insert(BANDERSNATCH, secret_uri, pair.public().as_ref())
+			.expect("Inserts unknown key");
+
+		let result =
+			store.bandersnatch_ring_vrf_sign(BANDERSNATCH, &pair.public(), &sign_data, &prover);
+
+		assert!(result.unwrap().is_some());
 	}
 }

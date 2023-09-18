@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2021-2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ use frame_support::{
 	assert_noop, assert_ok,
 	dispatch::Pays,
 	parameter_types,
-	traits::{ConstU32, ConstU64, GenesisBuild, StorageVersion},
+	traits::{ConstU32, ConstU64, StorageVersion},
 	Hashable,
 };
 use frame_system::{EnsureRoot, EventRecord, Phase};
@@ -36,10 +36,7 @@ pub type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
 pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<u32, u64, RuntimeCall, ()>;
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+	pub enum Test
 	{
 		System: frame_system::{Pallet, Call, Event<T>},
 		Collective: pallet_collective_mangata::<Instance1>::{Pallet, Call, Event<T>, Origin<T>, Config<T>},
@@ -68,8 +65,6 @@ mod mock_democracy {
 
 		#[pallet::call]
 		impl<T: Config> Pallet<T> {
-			#[pallet::call_index(0)]
-			#[pallet::weight(0)]
 			pub fn external_propose_majority(origin: OriginFor<T>) -> DispatchResult {
 				T::ExternalMajorityOrigin::ensure_origin(origin)?;
 				Self::deposit_event(Event::<T>::ExternalProposed);
@@ -113,14 +108,13 @@ impl frame_system::Config for Test {
 	type BlockLength = ();
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
-	type Index = u64;
-	type BlockNumber = u64;
+	type Nonce = u64;
 	type RuntimeCall = RuntimeCall;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = ConstU64<250>;
 	type Version = ();
@@ -197,7 +191,7 @@ impl ExtBuilder {
 	}
 
 	pub fn build(self) -> sp_io::TestExternalities {
-		let mut ext: sp_io::TestExternalities = GenesisConfig {
+		let mut ext: sp_io::TestExternalities = RuntimeGenesisConfig {
 			collective: pallet_collective_mangata::GenesisConfig {
 				members: self.collective_members,
 				phantom: Default::default(),
@@ -254,6 +248,25 @@ fn initialize_members_sorts_members() {
 		.build_and_execute(|| {
 			assert_eq!(Collective::members(), expected_members);
 		});
+}
+
+#[test]
+fn set_members_with_prime_works() {
+	ExtBuilder::default().build_and_execute(|| {
+		let members = vec![1, 2, 3];
+		assert_ok!(Collective::set_members(
+			RuntimeOrigin::root(),
+			members.clone(),
+			Some(3),
+			MaxMembers::get()
+		));
+		assert_eq!(Collective::members(), members.clone());
+		assert_eq!(Collective::prime(), Some(3));
+		assert_noop!(
+			Collective::set_members(RuntimeOrigin::root(), members, Some(4), MaxMembers::get()),
+			Error::<Test, Instance1>::PrimeAccountNotMember
+		);
+	});
 }
 
 #[test]

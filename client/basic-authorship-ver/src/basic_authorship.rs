@@ -22,7 +22,7 @@
 
 #[cfg(doc)]
 use aquamarine::aquamarine;
-use codec::{Decode, Encode};
+use codec::Encode;
 use futures::{
 	channel::oneshot,
 	future,
@@ -37,7 +37,7 @@ use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
 use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, Proposal};
-use sp_core::traits::SpawnNamed;
+use sp_core::{traits::SpawnNamed, ShufflingSeed};
 use sp_inherents::InherentData;
 use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
@@ -59,6 +59,8 @@ use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
 pub const DEFAULT_BLOCK_SIZE_LIMIT: usize = 4 * 1024 * 1024 + 512;
 
 const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(50);
+
+const LOG_TARGET: &'static str = "basic-authorship";
 
 /// [`Proposer`] factory.
 pub struct ProposerFactory<A, B, C, PR> {
@@ -188,8 +190,7 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
-	C::Api:
-		ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>> + BlockBuilderApi<Block>,
+	C::Api: ApiExt<Block> + BlockBuilderApi<Block>,
 {
 	fn init_with_now(
 		&mut self,
@@ -230,9 +231,7 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
-	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-		+ BlockBuilderApi<Block>
-		+ VerApi<Block>,
+	C::Api: ApiExt<Block> + BlockBuilderApi<Block> + VerApi<Block>,
 	PR: ProofRecording,
 {
 	type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
@@ -271,18 +270,11 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
-	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-		+ BlockBuilderApi<Block>
-		+ VerApi<Block>,
+	C::Api: ApiExt<Block> + BlockBuilderApi<Block> + VerApi<Block>,
 	PR: ProofRecording,
 {
-	type Transaction = backend::TransactionFor<B, Block>;
-	type Proposal = Pin<
-		Box<
-			dyn Future<Output = Result<Proposal<Block, Self::Transaction, PR::Proof>, Self::Error>>
-				+ Send,
-		>,
-	>;
+	type Proposal =
+		Pin<Box<dyn Future<Output = Result<Proposal<Block, PR::Proof>, Self::Error>> + Send>>;
 	type Error = sp_blockchain::Error;
 	type ProofRecording = PR;
 	type Proof = PR::Proof;
@@ -375,7 +367,10 @@ where
 					.propose_with(inherent_data, inherent_digests, deadline, block_size_limit)
 					.await;
 				if tx.send(res).is_err() {
-					trace!("Could not send block production result to proposer!");
+					trace!(
+						target: LOG_TARGET,
+						"Could not send block production result to proposer!"
+					);
 				}
 			}),
 		);
@@ -400,9 +395,7 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
-	C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-		+ BlockBuilderApi<Block>
-		+ VerApi<Block>,
+	C::Api: ApiExt<Block> + BlockBuilderApi<Block> + VerApi<Block>,
 	PR: ProofRecording,
 {
 	async fn propose_with(
@@ -411,49 +404,19 @@ where
 		inherent_digests: Digest,
 		deadline: time::Instant,
 		block_size_limit: Option<usize>,
-	) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
-	{
-		let propose_with_start = time::Instant::now();
-		let inherent_data = inherent_data.clone();
-
+	) -> Result<Proposal<Block, PR::Proof>, sp_blockchain::Error> {
+		let propose_with_timer = time::Instant::now();
 		let mut block_builder =
 			self.client.new_block_at(self.parent_hash, inherent_digests, PR::ENABLED)?;
 
-		let create_inherents_start = time::Instant::now();
-		let (seed, inherents) = block_builder.create_inherents(inherent_data.clone())?;
-		let create_inherents_end = time::Instant::now();
+		let seed = self.apply_inherents(&mut block_builder, inherent_data)?;
 
-		self.metrics.report(|metrics| {
-			metrics.create_inherents_time.observe(
-				create_inherents_end
-					.saturating_duration_since(create_inherents_start)
-					.as_secs_f64(),
-			);
-		});
+		// TODO call `after_inherents` and check if we should apply extrinsincs here
+		// <https://github.com/paritytech/substrate/pull/14275/>
 
-		debug!(target:"block_builder", "found {} inherents", inherents.len());
-		for inherent in inherents {
-			debug!(target:"block_builder", "processing inherent");
-			// TODO now it actually commits changes
-			match block_builder.push(inherent) {
-				Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
-					warn!("⚠️  Dropping non-mandatory inherent from overweight block.")
-				},
-				Err(ApplyExtrinsicFailed(Validity(e))) if e.was_mandatory() => {
-					error!(
-						"❌️ Mandatory inherent extrinsic returned error. Block cannot be produced."
-					);
-					Err(ApplyExtrinsicFailed(Validity(e)))?
-				},
-				Err(e) => {
-					warn!("❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e);
-				},
-				Ok(_) => {
-					trace!(target:"block_builder", "inherent pushed into the block");
-				},
-			}
-		}
+		let block_timer = time::Instant::now();
 
+		// apply_extrinsics
 		// proceed with transactions
 		// We calculate soft deadline used only in case we start skipping transactions.
 		let now = (self.now)();
@@ -465,7 +428,6 @@ where
 		// let queue_processing_deadline = now + time::Duration::from_micros(left_micros / 2);
 		let queue_processing_deadline = now + time::Duration::from_micros(left_micros * 55 / 100);
 
-		let block_timer = time::Instant::now();
 		let mut skipped = 0;
 		let mut unqueue_invalid = Vec::new();
 
@@ -486,25 +448,28 @@ where
 
 		// there might be some txs comming in that time - so its better to sleep than
 		// shortening remaining time
-		debug!(target: "block_builder", "sleeping by the end of the slot");
+		debug!(target: LOG_TARGET, "sleeping by the end of the slot");
 		first_slot_limit.await;
 
 		// artificially simulate that block is half filled
 		// also include header & proof cost for the second part to make sure
 		// that all txs included in that phase will have enought room to be executed in following
 		// block
-		debug!(target: "block_builder", "esitmated block size{}", block_builder.estimate_block_size_without_extrinsics(self.include_proof_in_block_size_estimation));
+		debug!(target: LOG_TARGET, "esitmated block size{}", block_builder.estimate_block_size_without_extrinsics(self.include_proof_in_block_size_estimation));
 		block_size = block_size_limit / 2 +
 			block_builder.estimate_block_size_without_extrinsics(
 				self.include_proof_in_block_size_estimation,
 			);
 
 		let now = (self.now)();
-		let mut t2 = futures_timer::Delay::new(deadline.saturating_duration_since(now) / 8).fuse();
+
+		let mut t2 =
+			futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
+
 		let mut pending_iterator = select! {
 			res = t1 => res,
 			_ = t2 => {
-				log::warn!(
+				warn!(target: LOG_TARGET,
 					"Timeout fired waiting for transaction pool at block #{}. \
 					Proceeding with production.",
 					self.parent_number,
@@ -513,8 +478,8 @@ where
 			},
 		};
 
-		debug!(target: "block_builder", "Attempting to push transactions from the pool.");
-		debug!(target: "block_builder", "Pool status: {:?}", self.transaction_pool.status());
+		debug!(target: LOG_TARGET, "Attempting to push transactions from the pool.");
+		debug!(target: LOG_TARGET, "Pool status: {:?}", self.transaction_pool.status());
 		let mut transaction_pushed = false;
 		let mut end_reason = EndProposingReason::NoMoreTransactions;
 
@@ -537,9 +502,11 @@ where
 					} else {
 						break EndProposingReason::NoMoreTransactions;
 					};
+
 					let now = (self.now)();
 					if now > deadline {
-						debug!(target: "block_builder",
+						debug!(
+							target: LOG_TARGET,
 							"Consensus deadline reached when pushing block transactions, \
 							proceeding with proposing."
 						);
@@ -556,26 +523,31 @@ where
 						pending_iterator.report_invalid(&pending_tx);
 						if skipped < MAX_SKIPPED_TRANSACTIONS {
 							skipped += 1;
-							debug!(target: "block_builder",
+							debug!(
+								target: LOG_TARGET,
 								"Transaction would overflow the block size limit, \
 								 but will try {} more transactions before quitting.",
 								MAX_SKIPPED_TRANSACTIONS - skipped,
 							);
 							continue;
 						} else if now < soft_deadline {
-							debug!(target: "block_builder",
+							debug!(
+								target: LOG_TARGET,
 								"Transaction would overflow the block size limit, \
 								 but we still have time before the soft deadline, so \
 								 we will try a bit more."
 							);
 							continue;
 						} else {
-							debug!(target: "block_builder","Reached block size limit, proceeding with proposing.");
+							debug!(
+								target: LOG_TARGET,
+								"Reached block size limit, proceeding with proposing."
+							);
 							break EndProposingReason::HitBlockSizeLimit;
 						}
 					}
 
-					trace!(target:"block_builder", "[{:?}] Pushing to the block.", pending_tx_hash);
+					trace!(target: LOG_TARGET, "[{:?}] Pushing to the block.", pending_tx_hash);
 					let who = api
 						.get_signer(*at, pending_tx_data.clone())
 						.unwrap()
@@ -584,32 +556,35 @@ where
 						Ok(()) => {
 							transaction_pushed = true;
 							valid_txs.push((who, pending_tx_data));
-							debug!(target: "block_builder", "[{:?}] Pushed to the block.", pending_tx_hash);
+							debug!(target: LOG_TARGET, "[{:?}] Pushed to the block.", pending_tx_hash);
 						},
 						Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
 							pending_iterator.report_invalid(&pending_tx);
 							if skipped < MAX_SKIPPED_TRANSACTIONS {
 								skipped += 1;
-								debug!(target: "block_builder",
+								debug!(target: LOG_TARGET,
 									"Block seems full, but will try {} more transactions before quitting.",
 									MAX_SKIPPED_TRANSACTIONS - skipped,
 								);
 							} else if (self.now)() < soft_deadline {
-								debug!(target: "block_builder",
+								debug!(target: LOG_TARGET,
 									"Block seems full, but we still have time before the soft deadline, \
 									 so we will try a bit more before quitting."
 								);
 							} else {
-								debug!(target: "block_builder", "now {:?}", (self.now)());
-								trace!(target:"block_builder", "soft_deadline : {:?}", soft_deadline.saturating_duration_since(now).as_secs_f64());
-								debug!(target: "block_builder",
-								"Reached block weight limit, proceeding with proposing.");
+								debug!(target: LOG_TARGET, "now {:?}", (self.now)());
+								trace!(target: LOG_TARGET, "soft_deadline : {:?}", soft_deadline.saturating_duration_since(now).as_secs_f64());
+								debug!(
+									target: LOG_TARGET,
+									"Reached block weight limit, proceeding with proposing."
+								);
 								break EndProposingReason::HitBlockWeightLimit;
 							}
 						},
 						Err(e) if skipped > 0 => {
 							pending_iterator.report_invalid(&pending_tx);
-							trace!(target: "block_builder",
+							trace!(
+								target: LOG_TARGET,
 								"[{:?}] Ignoring invalid transaction when skipping: {}",
 								pending_tx_hash,
 								e
@@ -617,7 +592,10 @@ where
 						},
 						Err(e) => {
 							pending_iterator.report_invalid(&pending_tx);
-							debug!(target: "block_builder","[{:?}] Invalid transaction: {}", pending_tx_hash, e);
+							debug!(
+								target: LOG_TARGET,
+								"[{:?}] Invalid transaction: {}", pending_tx_hash, e
+							);
 							unqueue_invalid.push(pending_tx_hash);
 						},
 					}
@@ -628,35 +606,110 @@ where
 
 		if matches!(end_reason, EndProposingReason::HitBlockSizeLimit) && !transaction_pushed {
 			warn!(
-				"Hit block size limit of `{}` without including any transaction!",
-				block_size_limit,
+				target: LOG_TARGET,
+				"Hit block size limit of `{}` without including any transaction!", block_size_limit,
 			);
 		}
 
 		self.transaction_pool.remove_invalid(&unqueue_invalid);
+		// end apply_extrinsics
 
-		debug!(target: "block_builder","created block {:?}", block);
-		debug!(target: "block_builder","created block with hash {}", block.header().hash());
+		let block_took = block_timer.elapsed();
+		debug!(target: LOG_TARGET,"created block {:?}", block);
+		debug!(target: LOG_TARGET,"created block with hash {}", block.header().hash());
+
+		let proof =
+			PR::into_proof(proof).map_err(|e| sp_blockchain::Error::Application(Box::new(e)))?;
+
+		self.print_summary(&block, end_reason, block_took, propose_with_timer.elapsed());
+		Ok(Proposal { block, proof, storage_changes })
+	}
+
+	/// Apply all inherents to the block.
+	fn apply_inherents(
+		&self,
+		block_builder: &mut sc_block_builder::BlockBuilder<'_, Block, C, B>,
+		inherent_data: InherentData,
+	) -> Result<ShufflingSeed, sp_blockchain::Error> {
+		let create_inherents_start = time::Instant::now();
+		let (seed, inherents) = block_builder.create_inherents(inherent_data.clone())?;
+		let create_inherents_end = time::Instant::now();
 
 		self.metrics.report(|metrics| {
-			metrics.number_of_transactions.set(block.extrinsics().len() as u64);
-			metrics.block_constructed.observe(block_timer.elapsed().as_secs_f64());
-
-			metrics.report_end_proposing_reason(end_reason);
+			metrics.create_inherents_time.observe(
+				create_inherents_end
+					.saturating_duration_since(create_inherents_start)
+					.as_secs_f64(),
+			);
 		});
 
+		debug!(target: LOG_TARGET, "found {} inherents", inherents.len());
+		for inherent in inherents {
+			debug!(target: LOG_TARGET, "processing inherent");
+			// TODO now it actually commits changes
+			match block_builder.push(inherent) {
+				Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
+					warn!(
+						target: LOG_TARGET,
+						"⚠️  Dropping non-mandatory inherent from overweight block."
+					)
+				},
+				Err(ApplyExtrinsicFailed(Validity(e))) if e.was_mandatory() => {
+					error!(
+						"❌️ Mandatory inherent extrinsic returned error. Block cannot be produced."
+					);
+					return Err(ApplyExtrinsicFailed(Validity(e)))
+				},
+				Err(e) => {
+					warn!(
+						target: LOG_TARGET,
+						"❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e
+					);
+				},
+				Ok(_) => {
+					trace!(target:LOG_TARGET, "inherent pushed into the block");
+				},
+			}
+		}
+		Ok(seed)
+	}
+
+	/// Prints a summary and does telemetry + metrics.
+	fn print_summary(
+		&self,
+		block: &Block,
+		end_reason: EndProposingReason,
+		block_took: time::Duration,
+		propose_with_took: time::Duration,
+	) {
+		let extrinsics = block.extrinsics();
+		self.metrics.report(|metrics| {
+			metrics.number_of_transactions.set(extrinsics.len() as u64);
+			metrics.block_constructed.observe(block_took.as_secs_f64());
+			metrics.report_end_proposing_reason(end_reason);
+			metrics.create_block_proposal_time.observe(propose_with_took.as_secs_f64());
+		});
+
+		let extrinsics_summary = if extrinsics.is_empty() {
+			"no extrinsics".to_string()
+		} else {
+			format!(
+				"extrinsics ({}): [{}]",
+				extrinsics.len(),
+				extrinsics
+					.iter()
+					.map(|xt| BlakeTwo256::hash_of(xt).to_string())
+					.collect::<Vec<_>>()
+					.join(", ")
+			)
+		};
+
 		info!(
-			"🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; extrinsics ({}): [{}]]",
+			"🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; {extrinsics_summary}",
 			block.header().number(),
-			block_timer.elapsed().as_millis(),
+			block_took.as_millis(),
 			<Block as BlockT>::Hash::from(block.header().hash()),
 			block.header().parent_hash(),
-			block.extrinsics().len(),
-			block.extrinsics()
-				.iter()
-				.map(|xt| BlakeTwo256::hash_of(xt).to_string())
-				.collect::<Vec<_>>()
-				.join(", ")
 		);
 		telemetry!(
 			self.telemetry;
@@ -665,22 +718,6 @@ where
 			"number" => ?block.header().number(),
 			"hash" => ?<Block as BlockT>::Hash::from(block.header().hash()),
 		);
-
-		if Decode::decode(&mut block.encode().as_slice()).as_ref() != Ok(&block) {
-			error!("Failed to verify block encoding/decoding");
-		}
-
-		let proof =
-			PR::into_proof(proof).map_err(|e| sp_blockchain::Error::Application(Box::new(e)))?;
-
-		let propose_with_end = time::Instant::now();
-		self.metrics.report(|metrics| {
-			metrics.create_block_proposal_time.observe(
-				propose_with_end.saturating_duration_since(propose_with_start).as_secs_f64(),
-			);
-		});
-
-		Ok(Proposal { block, proof, storage_changes })
 	}
 }
 
@@ -690,42 +727,44 @@ mod tests {
 
 	use futures::executor::block_on;
 	use parking_lot::Mutex;
+	use sc_client_api::Backend;
 	use sc_transaction_pool::BasicPool;
 	use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool, TransactionSource};
+	use sp_api::Core;
 	use sp_blockchain::HeaderBackend;
 	use sp_consensus::{Environment, Proposer};
 	use sp_core::Pair;
 	use sp_inherents::InherentDataProvider;
-	use sp_runtime::{generic::BlockId, traits::NumberFor};
+	use sp_runtime::{
+		generic::{BlockId, UncheckedExtrinsic},
+		traits::NumberFor,
+		Perbill,
+	};
 	use substrate_test_runtime_client::{
 		prelude::*,
-		runtime::{Extrinsic, Transfer},
+		runtime::{
+			substrate_test_pallet::pallet::Call as PalletCall, Block as TestBlock, Extrinsic,
+			ExtrinsicBuilder, RuntimeCall, Transfer,
+		},
 		TestClientBuilder, TestClientBuilderExt,
 	};
 
 	const SOURCE: TransactionSource = TransactionSource::External;
 
-	fn extrinsic(nonce: u64) -> Extrinsic {
-		Transfer {
-			amount: Default::default(),
-			nonce,
-			from: AccountKeyring::Alice.into(),
-			to: AccountKeyring::Bob.into(),
-		}
-		.into_signed_tx()
-	}
+	// Note:
+	// Maximum normal extrinsic size for `substrate_test_runtime` is ~65% of max_block (refer to
+	// `substrate_test_runtime::RuntimeBlockWeights` for details).
+	// This extrinsic sizing allows for:
+	// - one huge xts + a lot of tiny dust
+	// - one huge, no medium,
+	// - two medium xts
+	// This is widely exploited in following tests.
+	const HUGE: u32 = 649000000;
+	const MEDIUM: u32 = 250000000;
+	const TINY: u32 = 1000;
 
-	fn exhausts_resources_extrinsic_from(who: usize) -> Extrinsic {
-		let pair = AccountKeyring::numeric(who);
-		let transfer = Transfer {
-			// increase the amount to bump priority
-			amount: 1,
-			nonce: 0,
-			from: pair.public(),
-			to: AccountKeyring::Bob.into(),
-		};
-		let signature = pair.sign(&transfer.encode()).into();
-		Extrinsic::Transfer { transfer, signature, exhaust_resources_when_not_first: true }
+	fn extrinsic(nonce: u64) -> Extrinsic {
+		ExtrinsicBuilder::new_fill_block(Perbill::from_parts(TINY)).nonce(nonce).build()
 	}
 
 	fn chain_event<B: BlockT>(header: B::Header) -> ChainEvent<B>
@@ -892,8 +931,7 @@ mod tests {
 
 		let deadline = time::Duration::from_secs(9);
 		let proposal =
-			block_on(proposer.propose(inherent_data, Default::default(), deadline, None))
-				.unwrap();
+			block_on(proposer.propose(inherent_data, Default::default(), deadline, None)).unwrap();
 
 		assert_eq!(proposal.block.extrinsics().len(), 1);
 
@@ -913,7 +951,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn should_cease_building_block_when_block_limit_is_reached() {
-		let _ = env_logger::try_init();
 		let client = Arc::new(substrate_test_runtime_client::new());
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let txpool = BasicPool::new_full(
@@ -928,13 +965,11 @@ mod tests {
 			.expect("there should be header");
 
 		let extrinsics_num = 4;
-		let extrinsics = (0..extrinsics_num)
-			.map(|v| Extrinsic::IncludeData(vec![v as u8; 10]))
-			.collect::<Vec<_>>();
+		let extrinsics = (0..extrinsics_num).map(extrinsic).collect::<Vec<_>>();
 
-		let init_size = genesis_header.encoded_size()
-			+ Vec::<Extrinsic>::new().encoded_size() // list of extrinsics
-			+ Extrinsic::EnqueueTxs(extrinsics_num).encoded_size();
+		let init_size = genesis_header.encoded_size() +
+			Vec::<Extrinsic>::new().encoded_size() +
+			ExtrinsicBuilder::new_enqueue(extrinsics_num).build().encoded_size();
 
 		let block_limit = init_size +
 			extrinsics
@@ -942,7 +977,7 @@ mod tests {
 				.take((extrinsics_num - 1) as usize)
 				.map(|tx| Encode::encoded_size(tx) + sp_core::H256::len_bytes())
 				.sum::<usize>();
-		block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
+		block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics.clone())).unwrap();
 
 		block_on(txpool.maintain(chain_event(genesis_header.clone())));
 
@@ -975,8 +1010,9 @@ mod tests {
 		// Based on the block limit, one transaction shouldn't be included.
 		assert_eq!(block.extrinsics().len(), 1);
 		assert!(matches!(
-				block.extrinsics().get(0).expect("enqueue tx extrinsic"),
-				Extrinsic::EnqueueTxs(count) if *count == (extrinsics_num - 1)as u64));
+			block.extrinsics().get(0).expect("enqueue tx extrinsic"),
+			UncheckedExtrinsic { signature, function: RuntimeCall::SubstrateTest(PalletCall::enqueue { count }) } if *count == extrinsics_num - 1
+		));
 
 		let proposer = block_on(proposer_factory.init(&genesis_header)).unwrap();
 
@@ -988,8 +1024,9 @@ mod tests {
 		// Without a block limit we should include all of them
 		assert_eq!(block.extrinsics().len(), 1);
 		assert!(matches!(
-				block.extrinsics().get(0).expect("enqueue tx extrinsic"),
-				Extrinsic::EnqueueTxs(count) if *count == extrinsics_num as u64));
+			block.extrinsics().get(0).expect("enqueue tx extrinsic"),
+			UncheckedExtrinsic { signature, function: RuntimeCall::SubstrateTest(PalletCall::enqueue { count }) } if *count == extrinsics_num
+		));
 
 		let mut proposer_factory = ProposerFactory::with_proof_recording(
 			spawner.clone(),
@@ -1025,7 +1062,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline() {
-		let _ = env_logger::try_init();
 		// given
 		let client = Arc::new(substrate_test_runtime_client::new());
 		let spawner = sp_core::testing::TaskExecutor::new();
@@ -1037,6 +1073,15 @@ mod tests {
 			client.clone(),
 		);
 
+		let tiny = |nonce| {
+			ExtrinsicBuilder::new_fill_block(Perbill::from_parts(TINY)).nonce(nonce).build()
+		};
+		let huge = |who| {
+			ExtrinsicBuilder::new_fill_block(Perbill::from_parts(HUGE))
+				.signer(AccountKeyring::numeric(who))
+				.build()
+		};
+
 		block_on(
 			txpool.submit_at(
 				&BlockId::number(0),
@@ -1044,9 +1089,9 @@ mod tests {
 				// add 2 * MAX_SKIPPED_TRANSACTIONS that exhaust resources
 				(0..MAX_SKIPPED_TRANSACTIONS * 2)
 					.into_iter()
-					.map(|i| exhausts_resources_extrinsic_from(i))
+					.map(huge)
 					// and some transactions that are okay.
-					.chain((0..MAX_SKIPPED_TRANSACTIONS).into_iter().map(|i| extrinsic(i as _)))
+					.chain((0..MAX_SKIPPED_TRANSACTIONS as u64).into_iter().map(tiny))
 					.collect(),
 			),
 		)
@@ -1095,8 +1140,9 @@ mod tests {
 		// then block should have all non-exhaust resources extrinsics (+ the first one).
 		assert_eq!(block.extrinsics().len(), 1);
 		assert!(matches!(
-				block.extrinsics().get(0).expect("enqueue tx extrinsic"),
-				Extrinsic::EnqueueTxs(count) if *count == (MAX_SKIPPED_TRANSACTIONS + 1) as u64));
+			block.extrinsics().get(0).expect("enqueue tx extrinsic"),
+			UncheckedExtrinsic { signature, function: RuntimeCall::SubstrateTest(PalletCall::enqueue { count }) } if *count == MAX_SKIPPED_TRANSACTIONS as u64 + 1
+		));
 	}
 
 	#[tokio::test]
@@ -1112,15 +1158,27 @@ mod tests {
 			client.clone(),
 		);
 
+		let tiny = |who| {
+			ExtrinsicBuilder::new_fill_block(Perbill::from_parts(TINY))
+				.signer(AccountKeyring::numeric(who))
+				.nonce(1)
+				.build()
+		};
+		let huge = |who| {
+			ExtrinsicBuilder::new_fill_block(Perbill::from_parts(HUGE))
+				.signer(AccountKeyring::numeric(who))
+				.build()
+		};
+
 		block_on(
 			txpool.submit_at(
 				&BlockId::number(0),
 				SOURCE,
 				(0..MAX_SKIPPED_TRANSACTIONS + 2)
 					.into_iter()
-					.map(|i| exhausts_resources_extrinsic_from(i))
+					.map(huge)
 					// and some transactions that are okay.
-					.chain((0..MAX_SKIPPED_TRANSACTIONS).into_iter().map(|i| extrinsic(i as _)))
+					.chain((0..MAX_SKIPPED_TRANSACTIONS).into_iter().map(tiny))
 					.collect(),
 			),
 		)

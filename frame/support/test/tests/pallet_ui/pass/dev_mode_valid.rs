@@ -1,10 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{
-	traits::{
-		ConstU32,
-	},
-};
+use frame_support::traits::ConstU32;
 
 pub use pallet::*;
 
@@ -35,6 +31,15 @@ pub mod pallet {
 	#[pallet::storage]
 	type MyCountedStorageMap<T: Config> = CountedStorageMap<_, _, u32, u64>;
 
+	#[pallet::storage]
+	pub type MyStorageMap2<T: Config> = StorageMap<Key = u32, Value = u64>;
+
+	#[pallet::storage]
+	type MyStorageDoubleMap2<T: Config> = StorageDoubleMap<Key1 = u32, Key2 = u64, Value = u64>;
+
+	#[pallet::storage]
+	type MyCountedStorageMap2<T: Config> = CountedStorageMap<Key = u32, Value = u64>;
+
 	// Your Pallet's callable functions.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -51,14 +56,13 @@ pub mod pallet {
 impl frame_system::Config for Runtime {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type RuntimeOrigin = RuntimeOrigin;
-	type Index = u64;
-	type BlockNumber = u32;
+	type Nonce = u64;
 	type RuntimeCall = RuntimeCall;
 	type Hash = sp_runtime::testing::H256;
 	type Hashing = sp_runtime::traits::BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = sp_runtime::traits::IdentityLookup<Self::AccountId>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = ConstU32<250>;
 	type BlockWeights = ();
@@ -80,10 +84,7 @@ pub type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
 pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<u32, RuntimeCall, (), ()>;
 
 frame_support::construct_runtime!(
-	pub struct Runtime where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+	pub struct Runtime
 	{
 		// Exclude part `Storage` in order not to check its metadata in tests.
 		System: frame_system exclude_parts { Pallet, Storage },
@@ -91,17 +92,15 @@ frame_support::construct_runtime!(
 	}
 );
 
-impl pallet::Config for Runtime {
-	
-}
+impl pallet::Config for Runtime {}
 
 fn main() {
-	use frame_support::{pallet_prelude::*};
-	use storage::unhashed;
+	use frame_support::pallet_prelude::*;
 	use sp_io::{
 		hashing::{blake2_128, twox_128},
 		TestExternalities,
 	};
+	use storage::unhashed;
 
 	fn blake2_128_concat(d: &[u8]) -> Vec<u8> {
 		let mut v = blake2_128(d).to_vec();

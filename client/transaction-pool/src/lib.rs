@@ -397,9 +397,6 @@ where
 			client.usage_info().chain.finalized_hash,
 		));
 
-		// make transaction pool available for off-chain runtime calls.
-		client.execution_extensions().register_transaction_pool(&pool);
-
 		pool
 	}
 }
@@ -422,7 +419,7 @@ where
 
 	fn submit_local(
 		&self,
-		at: &BlockId<Self::Block>,
+		at: Block::Hash,
 		xt: sc_transaction_pool_api::LocalTransactionFor<Self>,
 	) -> Result<Self::Hash, Self::Error> {
 		use sp_runtime::{
@@ -431,7 +428,11 @@ where
 
 		let validity = self
 			.api
-			.validate_transaction_blocking(at, TransactionSource::Local, xt.clone())?
+			.validate_transaction_blocking(
+				&BlockId::hash(at),
+				TransactionSource::Local,
+				xt.clone(),
+			)?
 			.map_err(|e| {
 				Self::Error::Pool(match e {
 					TransactionValidityError::Invalid(i) => TxPoolError::InvalidTransaction(i),
@@ -442,7 +443,7 @@ where
 		let (hash, bytes) = self.pool.validated_pool().api().hash_and_length(&xt);
 		let block_number = self
 			.api
-			.block_id_to_number(at)?
+			.block_id_to_number(&BlockId::hash(at))?
 			.ok_or_else(|| error::Error::BlockIdConversion(format!("{:?}", at)))?;
 
 		let validated = ValidatedTransaction::valid_at(

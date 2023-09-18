@@ -63,7 +63,7 @@ pub(crate) mod beefy_protocol_name {
 }
 
 /// Returns the configuration value to put in
-/// [`sc_network::config::NetworkConfiguration::extra_sets`].
+/// [`sc_network::config::FullNetworkConfiguration`].
 /// For standard protocol name see [`beefy_protocol_name::gossip_protocol_name`].
 pub fn beefy_peers_set_config(
 	gossip_protocol_name: sc_network::ProtocolName,
@@ -117,7 +117,7 @@ mod tests {
 		use beefy_protocol_name::{gossip_protocol_name, justifications_protocol_name};
 		// Create protocol name using random genesis hash.
 		let genesis_hash = H256::random();
-		let genesis_hex = array_bytes::bytes2hex("", genesis_hash.as_ref());
+		let genesis_hex = array_bytes::bytes2hex("", genesis_hash);
 
 		let expected_gossip_name = format!("/{}/beefy/2", genesis_hex);
 		let gossip_proto_name = gossip_protocol_name(&genesis_hash, None);
