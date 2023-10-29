@@ -211,11 +211,32 @@ pub trait ProofOfStakeRewardsApi<AccountId> {
 		+ From<TokenId>
 		+ Into<TokenId>;
 
+	#[deprecated(note = "Use `enable_native_rewards` instead.")]
 	fn enable(liquidity_token_id: Self::CurrencyId, weight: u8);
 
+	fn enable_native_rewards(liquidity_token_id: Self::CurrencyId, weight: u8){
+		Self::enable(liquidity_token_id, weight)
+	}
+
+	#[deprecated(note = "Use `disable_native_rewards` instead.")]
 	fn disable(liquidity_token_id: Self::CurrencyId);
 
+	fn disable_native_rewards(liquidity_token_id: Self::CurrencyId, weight: u8){
+		Self::disable(liquidity_token_id)
+	}
+
+	#[deprecated(note = "Use `native_rewards_enabled` instead.")]
 	fn is_enabled(liquidity_token_id: Self::CurrencyId) -> bool;
+
+	fn native_rewards_enabled(liquidity_token_id: Self::CurrencyId) -> bool{
+		Self::is_enabled(liquidity_token_id)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn enable_3rdparty_rewards(account: AccountId, pool: (Self::CurrencyId,Self::CurrencyId), reward_token_id: Self::CurrencyId, last_block: u32, amount: Self::Balance);
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn activate_liquidity_for_3rdparty_rewards(account: AccountId, liquidity_token: Self::CurrencyId, amount: Self::Balance, reward_token_id: Self::CurrencyId);
 
 	fn claim_rewards_all(
 		sender: AccountId,
@@ -388,6 +409,11 @@ pub trait Valuate {
 	) -> Result<(Self::CurrencyId, Self::CurrencyId), DispatchError>;
 
 	fn valuate_liquidity_token(
+		liquidity_token_id: Self::CurrencyId,
+		liquidity_token_amount: Self::Balance,
+	) -> Self::Balance;
+
+	fn valuate_non_liquidity_token(
 		liquidity_token_id: Self::CurrencyId,
 		liquidity_token_amount: Self::Balance,
 	) -> Self::Balance;
